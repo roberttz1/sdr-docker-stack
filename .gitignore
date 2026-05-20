@@ -1,0 +1,16 @@
+# Arquivos sensíveis
+.env
+
+# Diretórios de Agentes e Configurações da IDE
+.agents/
+.claude/
+.gemini/
+
+# Arquivos temporários do n8n / testes locais
+create_workflow.js
+workflow_teste.json
+
+# Sistema operacional
+Thumbs.db
+Desktop.ini
+.DS_Store

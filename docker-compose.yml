@@ -1,0 +1,123 @@
+services:
+
+  # ─────────────────────────────────────────
+  # EVOLUTION API
+  # Acesso interno: http://api:8080
+  # ─────────────────────────────────────────
+  api:
+    container_name: evolution_api
+    image: atendai/evolution-api:v2.1.1 # Imagem sugerida por ser mais estável, mas pode ser :latest se preferir
+    restart: always
+    ports:
+      - 8080:8080
+    volumes:
+      - evolution_instances:/evolution/instances
+    networks:
+      - evolution-net
+    env_file:
+      - .env
+    depends_on:
+      - postgres
+      - redis
+
+  # ─────────────────────────────────────────
+  # POSTGRESQL
+  # Acesso interno: postgres:5432
+  # ─────────────────────────────────────────
+  postgres:
+    container_name: evolution-postgres-1
+    image: postgres:15-alpine # Versão mais atualizada recomendada
+    restart: always
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: typebot
+      POSTGRES_DB: evolution_db
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    networks:
+      - evolution-net
+
+  # ─────────────────────────────────────────
+  # REDIS
+  # Acesso interno: redis:6379
+  # ─────────────────────────────────────────
+  redis:
+    container_name: evolution-redis-1
+    image: redis:alpine
+    restart: always
+    ports:
+      - "6380:6379"
+    networks:
+      - evolution-net
+
+  # ─────────────────────────────────────────
+  # N8N
+  # Acesso interno: n8n:5678
+  # Acesso externo: http://localhost:5678
+  # ─────────────────────────────────────────
+  n8n:
+    container_name: evolution-n8n-1
+    image: n8nio/n8n:latest
+    restart: always
+    ports:
+      - "5678:5678"
+    volumes:
+      - n8n_data:/home/node/.n8n
+    environment:
+      - EVOLUTION_URL=http://api:8080
+      - EVOLUTION_INSTANCE=Number_4847
+      - N8N_BASIC_AUTH_ACTIVE=true
+      - N8N_BASIC_AUTH_USER=admin
+      - N8N_BASIC_AUTH_PASSWORD=admin123
+      - GENERIC_TIMEZONE=America/Sao_Paulo
+      - TZ=America/Sao_Paulo
+      - WEBHOOK_URL=http://localhost:5678
+      - N8N_HOST=0.0.0.0
+      - N8N_PORT=5678
+    networks:
+      - evolution-net
+    depends_on:
+      - redis
+
+  # ─────────────────────────────────────────
+  # MCP SERVER (n8n-mcp via imagem Docker Hub)
+  # Acesso externo: http://localhost:3000
+  # ─────────────────────────────────────────
+  mcp-server:
+    container_name: evolution-mcp-server
+    image: ghcr.io/czlonkowski/n8n-mcp:latest
+    restart: always
+    ports:
+      - "3000:3000"
+    volumes:
+      - mcp_data:/app/data
+    environment:
+      - MCP_MODE=http
+      - PORT=3000
+      - HOST=0.0.0.0
+      - AUTH_TOKEN=${MCP_AUTH_TOKEN}
+      - N8N_API_URL=http://n8n:5678
+      - N8N_API_KEY=${N8N_API_KEY}
+      - N8N_API_TIMEOUT=30000
+      - N8N_API_MAX_RETRIES=3
+      - WEBHOOK_SECURITY_MODE=permissive
+      - NODE_ENV=production
+      - MCP_LOG_LEVEL=info
+      - NODE_DB_PATH=/app/data/nodes.db
+      - REBUILD_ON_START=false
+    networks:
+      - evolution-net
+    depends_on:
+      - n8n
+
+volumes:
+  evolution_instances:
+  pg_data:
+  n8n_data:
+  mcp_data:
+
+networks:
+  evolution-net:
+    driver: bridge

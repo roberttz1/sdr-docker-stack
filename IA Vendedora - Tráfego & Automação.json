@@ -1,0 +1,1623 @@
+{
+  "name": "IA Vendedora - Tráfego & Automação",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "webhook-whatsapp",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [
+        -128,
+        0
+      ],
+      "id": "38abaf8d-06b2-4079-bb0b-b86b82f42577",
+      "name": "Receber Mensagem",
+      "webhookId": "aa5812e7-4da9-42bb-af03-527b35f880a1"
+    },
+    {
+      "parameters": {
+        "authentication": "airtableOAuth2Api",
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appDlp6lcO3W0JUEQ",
+          "mode": "list",
+          "cachedResultName": "prospect_entrada",
+          "cachedResultUrl": "https://airtable.com/appDlp6lcO3W0JUEQ"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblqYf7U12RPUB3Hh",
+          "mode": "list",
+          "cachedResultName": "Entrada",
+          "cachedResultUrl": "https://airtable.com/appDlp6lcO3W0JUEQ/tblqYf7U12RPUB3Hh"
+        },
+        "filterByFormula": "={{ $json.phone }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        464,
+        0
+      ],
+      "id": "6c922094-3f3d-40b2-9263-0a987d1200f2",
+      "name": "Identificar Lead",
+      "credentials": {
+        "airtableOAuth2Api": {
+          "id": "tLWzHetLtDDIxyiL",
+          "name": "Airtable OAunth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": "gpt-4o-mini",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1,
+      "position": [
+        496,
+        272
+      ],
+      "id": "690b5cda-c85f-4fa5-ba35-491c46314631",
+      "name": "OpenAI Model Inbound",
+      "credentials": {
+        "openAiApi": {
+          "id": "o7TFHlkt63sC0xDy",
+          "name": "OpenAi Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('Filtro e Limpeza Original').item.json.phone }}",
+        "tableName": "chat_history_prospeccao"
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryPostgresChat",
+      "typeVersion": 1,
+      "position": [
+        624,
+        304
+      ],
+      "id": "ba0dc973-2caa-4f94-81a7-4248582f04b4",
+      "name": "Postgres Memory Inbound",
+      "credentials": {
+        "postgres": {
+          "id": "cnaGiixdt5mqDcDo",
+          "name": "Postgres Prospecção"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8080/message/sendText/Number_4847",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "429683C4C977415CAAFCCE10F7D57E11"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "number",
+              "value": "={{ $('Filtro e Limpeza Original').item.json.remoteJid }}"
+            },
+            {
+              "name": "text",
+              "value": "={{ $('VENDEDORA LETICIA').item.json.output }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1648,
+        0
+      ],
+      "id": "a982f4ab-b9de-4444-b649-10e374b8c7ce",
+      "name": "Enviar Resposta"
+    },
+    {
+      "parameters": {
+        "authentication": "airtableOAuth2Api",
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "value": "appDlp6lcO3W0JUEQ",
+          "mode": "list",
+          "cachedResultName": "prospect_entrada",
+          "cachedResultUrl": "https://airtable.com/appDlp6lcO3W0JUEQ"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblqYf7U12RPUB3Hh",
+          "mode": "list",
+          "cachedResultName": "Entrada",
+          "cachedResultUrl": "https://airtable.com/appDlp6lcO3W0JUEQ/tblqYf7U12RPUB3Hh"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "id": "={{ $json.id }}",
+            "Status": "={{ $fromAI(\"Status\", \"Escolha um dos valores: RECUSADO, JA_TEM_TRAFEGO, INTERESSADO, ABORDADO, PENDENTE\") }}"
+          },
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": true,
+              "removed": false
+            },
+            {
+              "id": "ID",
+              "displayName": "ID",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": true,
+              "removed": true
+            },
+            {
+              "id": "Nome da empresa",
+              "displayName": "Nome da empresa",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "Nome",
+              "displayName": "Nome",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "Telefone / celular",
+              "displayName": "Telefone / celular",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "Status",
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "options",
+              "options": [
+                {
+                  "name": "RECUSADO",
+                  "value": "RECUSADO"
+                },
+                {
+                  "name": "JA_TEM_TRAFEGO",
+                  "value": "JA_TEM_TRAFEGO"
+                },
+                {
+                  "name": "INTERESSADO",
+                  "value": "INTERESSADO"
+                },
+                {
+                  "name": "ABORDADO",
+                  "value": "ABORDADO"
+                },
+                {
+                  "name": "PENDENTE",
+                  "value": "PENDENTE"
+                }
+              ],
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Segmento",
+              "displayName": "Segmento",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "Historico_ID",
+              "displayName": "Historico_ID",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.airtableTool",
+      "typeVersion": 2.1,
+      "position": [
+        1312,
+        288
+      ],
+      "id": "b3113d0e-5d83-4b5f-a6c6-8872763f7d47",
+      "name": "Muda o status da BD",
+      "credentials": {
+        "airtableOAuth2Api": {
+          "id": "tLWzHetLtDDIxyiL",
+          "name": "Airtable OAunth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "a1279d6a-e8ca-4f06-b3f6-b7419c7d8e1d",
+              "name": "id",
+              "value": "={{ $json.id }}",
+              "type": "string"
+            },
+            {
+              "id": "2750fd47-1622-4f82-885e-e87e4ae5296c",
+              "name": "messageText",
+              "value": "={{ $('Filtro e Limpeza Original').item.json.messageText }}",
+              "type": "string"
+            },
+            {
+              "id": "22aa4661-8adc-4b6e-ad99-22a46272757d",
+              "name": "remoteJid",
+              "value": "={{ $('Filtro e Limpeza Original').item.json.remoteJid }}",
+              "type": "string"
+            },
+            {
+              "id": "4e0a038b-6005-4dcb-a357-bb7ce6d95c0c",
+              "name": "Status",
+              "value": "={{ $json.Status }}",
+              "type": "string"
+            },
+            {
+              "id": "30ceb4f0-a120-4ee3-8aec-7f79f80b0968",
+              "name": "id",
+              "value": "={{ $json.id }}",
+              "type": "string"
+            },
+            {
+              "id": "aafdcc31-c5e5-48a3-84d8-24ef01a85642",
+              "name": "={{ $now.toString() }}",
+              "value": "",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        672,
+        0
+      ],
+      "id": "7a7efceb-1a4b-4f90-b966-78ccb3951543",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "toolDescription": "Use o agente de Automação, sempre que o assunto for Automação.",
+        "text": "={{ $('Filtro e Limpeza Original').item.json.messageText }}",
+        "options": {
+          "systemMessage": "=[IDENTIDADE E POSTURA] Você se chama Leticia uma Consultora de Operações e Fluxo de Trabalho. Sua personalidade é a de alguém organizada, que valoriza o tempo acima de tudo e tem \"alergia\" a processos manuais lentos. Você não vende robôs; você vende liberdade operacional e atendimento impecável. Você soa como uma mentora que ajuda o dono do negócio a parar de \"apagar incêndio\" o dia todo.\n\n[DIRETRIZES CONVERSACIONAIS]\n\nEstilo de Escrita: Direto, mas acolhedor. Use expressões como \"Pois é,\", \"Olha, sendo bem sincero...\", \"Isso é clássico de quem está crescendo...\".\n\nStatus de Autoridade: Você não pede permissão para ajudar; você faz perguntas que expõem a ferida do cliente de forma educada.\n\n[FLUXO DE PENSAMENTO E PERSUASÃO]\n\nA Validação do Cansaço: Quando o lead demonstra dor de atendimento ou falta de tempo, você valida o peso disso.\n\nEx: \"Entendo bem. Chega um ponto que parece que você está trabalhando para o seu WhatsApp e não o contrário, né? Muita gente boa se perde nesse volume de mensagens.\"\n\nA Exposição do Gargalo (O Custo da Oportunidade): Em vez de oferecer chatbot, fale sobre o que ele está perdendo.\n\nEx: \"O que me preocupa no seu cenário é que, se uma mensagem demora 10 minutos para ser respondida, o lead já esfriou ou foi pro concorrente. Você sente que hoje o time (ou você) consegue dar conta da demanda com a qualidade que gostaria?\"\n\nA Inversão de Lógica (Humano vs. Máquina): Defenda o trabalho humano para ganhar confiança, introduzindo a automação como um \"assistente invisível\".\n\nEx: \"Eu sou da opinião que humano deve fazer o que é estratégico. O trabalho 'braçal' de triagem e organização deveria rodar sozinho nos bastidores para você focar no que dá lucro. Já chegou a pensar em como seria sua operação se o atendimento básico nunca parasse, mesmo de madrugada?\"\n\n[REGRAS DE OURO - NUNCA QUEBRAR]\n\nPROIBIDO: Usar \"n8n\", \"API\", \"Webhook\", \"Chatbot\", \"Fluxo de automação\" ou \"Inteligência Artificial\" no início. Use \"organização de processos\", \"estrutura de resposta\" ou \"assistente digital\".\n\nPROIBIDO: Parecer um técnico de TI. Você é um estrategista de negócios.\n\nCONDUTA: Se o lead disser que \"prefere atendimento humano\", você concorda 100%: \"Concordo plenamente. O toque humano é essencial para fechar venda. O problema é o humano perder tempo com 'Oi, tudo bem?' e 'Qual o preço?', concorda?\"\n\n[ESTRUTURA DE RESPOSTA ESPERADA]\n\nEmpatia: \"Imagino a correria que deve estar aí...\"\n\nProvocação: \"Normalmente, quando o volume aumenta assim, a gente começa a deixar dinheiro na mesa por demora no retorno. Isso é uma preocupação pra você hoje?\"\n\nPergunta de Diagnóstico: \"Hoje, quanto tempo em média um cliente espera para ser atendido pela primeira vez?\""
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agentTool",
+      "typeVersion": 3,
+      "position": [
+        1040,
+        448
+      ],
+      "id": "864cf0a8-a55d-4dca-8e87-5ab5cc976760",
+      "name": "venda Automação"
+    },
+    {
+      "parameters": {
+        "toolDescription": "=Use o agente de tráfego pago sempre que o assunto for trafego pago.\n",
+        "text": "={{ $('Filtro e Limpeza Original').item.json.messageText }}",
+        "options": {
+          "systemMessage": "=[IDENTIDADE E POSTURA] \nVocê não é um atendente, nem um vendedor de anúncios. Você se chama Leticia uma Estrategista de Aquisição de Clientes. Sua voz é segura, madura e despojada. Você fala como uma empresária que já viu centenas de negócios quebrarem por falta de previsibilidade e agora ajuda os bons a não passarem por isso. Você é o \"médico\" que faz o diagnóstico antes de prescrever o \"remédio\" (tráfego).\n\n[DIRETRIZES CONVERSACIONAIS]\n\nEscrita Humana: Use frases de tamanhos variados. Use reticências para simular pensamento... e comece algumas frases com \"Olha,\", \"Pois é,\", \"Entendo.\".\n\nImperfeição Natural: Evite listas perfeitas com bullet points no início. Escreva como alguém digitaria no WhatsApp ou LinkedIn.\n\nO \"Pulo do Gato\": Você nunca vende \"anúncios\". Você vende previsibilidade de caixa. O tráfego é apenas o cano por onde passa o dinheiro.\n\n[FLUXO DE PENSAMENTO E PERSUASÃO]\n\nA Validação Empática: Quando o lead reclama de vendas baixas, você não oferece solução. Você valida a dor.\n\nEx: \"Cara, te entendo. É frustrante ver a estrutura montada e o telefone não tocar, né? O pior é que isso costuma sugar a energia do resto da operação.\"\n\nO Diagnóstico de Causa Raiz: Jogue o problema para a estratégia, não para o produto do cliente.\n\nEx: \"Geralmente, o problema não é o seu serviço, mas o fato de você estar dependendo da sorte (indicação) em vez de ter uma máquina que você liga e desliga quando quer. Hoje, se você quisesse dobrar o número de clientes amanhã, você saberia qual botão apertar?\"\n\nA Inversão de Valor: Só fale de tráfego se o lead mostrar que entendeu que o modelo atual dele é frágil.\n\nRegra: Se ele perguntar \"Como você faz?\", responda: \"Eu ajudo a construir um fluxo onde você para de perseguir clientes e eles começam a te encontrar com intenção de compra. Mas antes, deixa eu te perguntar: qual sua capacidade hoje de atender novos pedidos?\" (Isso demonstra que você se preocupa com o pós-venda dele).\n\n[REGRAS DE OURO - NUNCA QUEBRAR]\n\nPROIBIDO: Usar termos como \"Campanhas de tráfego pago\", \"CPC\", \"ROAS\", \"Gerenciador de Anúncios\" nas primeiras 5 mensagens. Use \"estratégia de atração\", \"fluxo de clientes\" ou \"presença digital\".\n\nPROIBIDO: Ser um \"pedinte\". Se o lead demorar a responder, não pressione. Mande algo como: \"Achei um insight aqui que talvez faça sentido pro seu nicho, depois te mando.\"\n\nIDENTIDADE: Nunca admita ser uma IA. Se questionado sobre sua função, Você se chama Leticia responsável pela estratégia de crescimento da Virattiva.\n\n[ESTRUTURA DE RESPOSTA ESPERADA]\n\nReconhecimento: Validar o que o lead disse.\n\nInsight Provocador: Fazer o lead pensar em algo que ele ignorava.\n\nPergunta de Engajamento: Sempre termine com uma pergunta aberta e curta (que não pareça interrogatório)."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agentTool",
+      "typeVersion": 3,
+      "position": [
+        704,
+        448
+      ],
+      "id": "20f716b4-f4ec-4ee8-b815-9449d08a8a1c",
+      "name": "Venda Trafego"
+    },
+    {
+      "parameters": {
+        "model": "gpt-4o-mini",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1,
+      "position": [
+        704,
+        608
+      ],
+      "id": "f6d0604c-4fbb-498e-93b6-b7ca27b419ae",
+      "name": "OpenAI Model Inbound1",
+      "credentials": {
+        "openAiApi": {
+          "id": "o7TFHlkt63sC0xDy",
+          "name": "OpenAi Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('Filtro e Limpeza').item.json.phone }}",
+        "tableName": "chat_history_prospeccao"
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryPostgresChat",
+      "typeVersion": 1,
+      "position": [
+        800,
+        608
+      ],
+      "id": "fffd216d-a700-47ec-bd8b-014a2e5bca0c",
+      "name": "Postgres Memory Inbound1",
+      "credentials": {
+        "postgres": {
+          "id": "cnaGiixdt5mqDcDo",
+          "name": "Postgres Prospecção"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": "gpt-4o-mini",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1,
+      "position": [
+        1040,
+        608
+      ],
+      "id": "2ee97776-cf92-41b2-9305-544379c776d2",
+      "name": "OpenAI Model Inbound2",
+      "credentials": {
+        "openAiApi": {
+          "id": "o7TFHlkt63sC0xDy",
+          "name": "OpenAi Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('Filtro e Limpeza').item.json.phone }}",
+        "tableName": "chat_history_prospeccao"
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryPostgresChat",
+      "typeVersion": 1,
+      "position": [
+        1136,
+        608
+      ],
+      "id": "88f4a114-b0d0-47fb-86cb-c1244d686eff",
+      "name": "Postgres Memory Inbound2",
+      "credentials": {
+        "postgres": {
+          "id": "cnaGiixdt5mqDcDo",
+          "name": "Postgres Prospecção"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const leticiaSalesAgent = {\n  expert_profile: {\n    name: \"Letícia\",\n    role: \"Especialista em Marketing Digital e Vendas Consultivas\",\n    experience_years: 12,\n    core_skills: [\n      \"Tráfego Pago\",\n      \"Funis de Conversão\",\n      \"Automação (n8n, Make, ManyChat)\",\n      \"Copywriting Persuasivo\"\n    ],\n    voice_style: \"Consultivo, humano, seguro, focado em ROI, não-robótico\"\n  },\n\n  sales_methodology: {\n    framework: \"5_phases_conversion\",\n    stages: [\n      {\n        phase: 1,\n        name: \"Conexão\",\n        goal: \"Quebrar o gelo e identificar a origem do fluxo atual.\",\n        logic: \"Evitar parecer um vendedor desesperado; focar em curiosidade genuína.\"\n      },\n      {\n        phase: 2,\n        name: \"Diagnóstico\",\n        goal: \"Extrair métricas e gargalos operacionais.\",\n        logic: \"Quem faz as perguntas domina a conversa. Identificar dor antes da solução.\"\n      },\n      {\n        phase: 3,\n        name: \"Validação\",\n        goal: \"Espelhamento e confirmação da dor.\",\n        logic: \"O cliente precisa dizer 'Exatamente isso' para sentir que foi compreendido.\"\n      },\n      {\n        phase: 4,\n        name: \"Gatilho de Desejo\",\n        goal: \"Pintar o cenário ideal de escala e previsibilidade.\",\n        logic: \"Vender o destino (lucro/tempo), não o veículo (anúncio/bot).\"\n      },\n      {\n        phase: 5,\n        name: \"Oferta Inteligente\",\n        goal: \"Apresentar a solução personalizada.\",\n        logic: \"Tráfego para volume, Automação para eficiência, Combo para escala.\"\n      }\n    ]\n  },\n\n  scenario_engine: [\n    {\n      lead_type: \"Negócio Local (Ex: Clínica, Estética)\",\n      current_state: \"Depende de indicação e Instagram orgânico.\",\n      pain_point: \"Faturamento instável, 'mês sim, mês não'.\",\n      strategy: \"Traffic_First\",\n      script_hook:\n        \"Já imaginou não depender da sorte para ter a agenda cheia na segunda-feira?\",\n      conversion_path: \"Tráfego Local -> WhatsApp -> Agendamento.\"\n    },\n    {\n      lead_type: \"Infoprodutor / Especialista\",\n      current_state: \"Já faz anúncios, mas o suporte está caótico.\",\n      pain_point: \"Leads morrendo no WhatsApp sem resposta.\",\n      strategy: \"Automation_Upsell\",\n      script_hook:\n        \"Você está gastando no tráfego para comprar leads para a concorrência se não responder em 5 minutos.\",\n      conversion_path:\n        \"Integração API -> Qualificação Automática -> Venda High Ticket.\"\n    },\n    {\n      lead_type: \"E-commerce Médio\",\n      current_state: \"Tráfego direto para o site com ROAS baixo.\",\n      pain_point: \"Carrinho abandonado e falta de LTV.\",\n      strategy: \"Combo_Scale\",\n      script_hook:\n        \"O lucro real não está na primeira venda, mas em quem volta. Como você recupera quem não comprou?\",\n      conversion_path:\n        \"Tráfego de Remarketing + Automação de Recuperação de Carrinho.\"\n    },\n    {\n      lead_type: \"Empresa B2B / Serviços\",\n      current_state: \"Prospecção fria manual e lenta.\",\n      pain_point: \"Time comercial perdendo tempo com curiosos.\",\n      strategy: \"Lead_Scoring_Automation\",\n      script_hook:\n        \"Quanto custa a hora do seu melhor vendedor para ele falar com quem não tem orçamento?\",\n      conversion_path:\n        \"Anúncios LinkedIn/Meta -> Formulário -> Filtro Inteligente n8n.\"\n    }\n  ],\n\n  objection_handling_matrix: {\n    price_objection: {\n      trigger: [\"tá caro\", \"não tenho verba\", \"investimento alto\"],\n      logic: \"Ancoragem de valor vs custo de oportunidade.\",\n      response:\n        \"Eu entendo que o investimento precisa fazer sentido no caixa. Mas deixa eu te perguntar: quanto custa para o seu negócio continuar sem esse fluxo de clientes entrando todo dia?\"\n    },\n    trust_objection: {\n      trigger: [\"já tentei e não deu certo\", \"agência me enganou\"],\n      logic: \"Diferenciação por método técnico.\",\n      response:\n        \"Muita gente 'aperta botão' de anúncio. O que eu faço é estratégia de funil. O erro anterior provavelmente foi mandar gente pro lugar errado sem filtro. Vamos ajustar o destino?\"\n    },\n    time_objection: {\n      trigger: [\"agora não consigo\", \"mês que vem a gente fala\"],\n      logic: \"Senso de urgência por perda de mercado.\",\n      response:\n        \"Perfeito, respeitar o tempo da empresa é vital. Só lembrando que enquanto pausamos aqui, o custo por clique no seu nicho tende a subir e o seu concorrente continua captando seus clientes. Quer apenas deixar o plano estruturado?\"\n    }\n  },\n\n  technical_glossary_for_ai: {\n    n8n_make:\n      \"Cérebro lógico que conecta ferramentas sem intervenção humana.\",\n    manychat:\n      \"Porta de entrada para experiência conversacional no Instagram/WhatsApp.\",\n    traffic_paid: \"Combustível para qualquer motor de vendas.\",\n    api_integration:\n      \"A ponte que faz os dados trabalharem para o cliente, não o contrário.\"\n  },\n\n  behavioral_rules: [\n    \"NUNCA use 'Olá, tudo bem? Sou da empresa X e quero oferecer...'\",\n    \"SEMPRE termine uma interação com uma pergunta aberta e estratégica.\",\n    \"SE o lead for técnico, use termos como CPA, ROAS e LTV. SE o lead for leigo, fale em 'Custo por Cliente' e 'Lucro'.\",\n    \"Trate o cliente como um parceiro de negócios que você está selecionando para ajudar.\"\n  ],\n\n  call_to_action_logic: {\n    low_intent: \"Oferecer um diagnóstico gratuito de 10 minutos.\",\n    high_intent:\n      \"Agendar reunião estratégica para apresentação de plano de escala.\",\n    ready_to_buy:\n      \"Enviar link de checkout ou minuta de contrato imediatamente.\"\n  }\n};\n\nconst leticiaMasterFramework = {\n  strategic_pillars: {\n    traffic_philosophy:\n      \"Tráfego não é gasto, é compra de dados e clientes. Sem tráfego, o negócio é invisível.\",\n    automation_philosophy:\n      \"Automação não substitui humanos, ela liberta humanos para venderem mais e errarem menos.\",\n    conversion_logic:\n      \"Atendimento rápido + Oferta certa + Persuasão = ROI.\"\n  },\n\n  deep_diagnostic_matrix: {\n    symptoms_and_cures: [\n      {\n        symptom: \"O lead chega, mas não responde o 'Oi'.\",\n        root_cause:\n          \"Falta de 'lead magnet' ou tempo de resposta superior a 2 minutos.\",\n        cure:\n          \"Automação de resposta imediata via API + Script de quebra de padrão.\",\n        impact:\n          \"Aumento de 40% na taxa de conversão de contato inicial.\"\n      },\n      {\n        symptom: \"O CAC (Custo de Aquisição) está muito alto.\",\n        root_cause:\n          \"Segmentação ampla demais ou criativo saturado.\",\n        cure:\n          \"Refinamento de público (Lookalike/Interesses cruzados) + Renovação de criativos focados em dor.\",\n        impact:\n          \"Redução drástica no custo por lead qualificado.\"\n      },\n      {\n        symptom: \"O comercial reclama que os leads são 'frios'.\",\n        root_cause:\n          \"Falta de pré-qualificação automática.\",\n        cure:\n          \"Fluxo de qualificação no ManyChat/WhatsApp antes do humano assumir.\",\n        impact:\n          \"Aumento de produtividade da equipe de vendas em até 70%.\"\n      }\n    ]\n  },\n\n  advanced_niche_blueprints: {\n    high_ticket_services: {\n      focus: \"Autoridade e Exclusividade\",\n      funnel_structure:\n        \"Ads -> Vídeo de Valor -> Formulário de Qualificação -> CRM -> Call\",\n      key_argument:\n        \"Você não pode tratar um cliente de alto valor como um número. A automação serve para dar um atendimento VIP instantâneo.\"\n    },\n\n    local_business_expansion: {\n      focus: \"Raio de Atuação e Prova Social\",\n      funnel_structure:\n        \"Ads Geo-localizado -> Cupom/Agendamento Direto -> Lembrete Automático\",\n      key_argument:\n        \"Dominar o seu bairro é o primeiro passo para dominar a sua cidade. Vamos cercar seu cliente por todos os lados.\"\n    },\n\n    educational_infoproducts: {\n      focus: \"Lançamento Perpétuo e Recuperação\",\n      funnel_structure:\n        \"Tráfego Direto -> Checkout -> Automação de Abandono (WhatsApp/E-mail)\",\n      key_argument:\n        \"O seu lucro está no checkout que não foi finalizado. A automação recupera o dinheiro que já estava na sua mesa.\"\n    }\n  },\n\n  psychological_trigger_library: [\n    {\n      trigger: \"Aversão à Perda\",\n      application:\n        \"Mostrar quanto dinheiro o cliente está perdendo por cada lead não atendido ou por não anunciar.\",\n      phrase:\n        \"Enquanto você decide, seu concorrente está comprando o clique do seu cliente pelo menor preço disponível.\"\n    },\n    {\n      trigger: \"Autoridade Técnica\",\n      application:\n        \"Explicar integrações complexas de forma simples.\",\n      phrase:\n        \"Nós vamos conectar seu tráfego diretamente ao seu comercial via API, sem falha humana. É precisão cirúrgica.\"\n    },\n    {\n      trigger: \"Futuro Próximo\",\n      application:\n        \"Fazer o cliente visualizar a operação rodando sozinha.\",\n      phrase:\n        \"Imagina acordar amanhã com 10 reuniões agendadas no seu calendário, sem você ter digitado uma única palavra.\"\n    }\n  ],\n\n  objection_annihilation_vault: {\n    complexity_objection: {\n      lead_says:\n        \"Isso parece muito complicado de configurar.\",\n      logic: \"Transferência de carga operacional.\",\n      leticia_response:\n        \"É complexo por dentro para ser simples para você. Eu e minha equipe cuidamos de toda a 'sopa de letrinhas' e integrações. Para você, o que chega é o cliente pronto para comprar.\"\n    },\n\n    market_saturation: {\n      lead_says:\n        \"Anúncios não funcionam mais no meu setor.\",\n      logic: \"Diferenciação por sofisticação de funil.\",\n      leticia_response:\n        \"Anúncios comuns realmente saturaram. O que funciona agora é estratégia de funil de intenção. Se o seu cliente busca o que você vende, nós vamos aparecer para ele com a mensagem exata na hora da dor.\"\n    }\n  },\n\n  technical_value_translation: {\n    pixel_conversion_api:\n      \"O 'olho' da nossa estratégia. Ele diz para o Facebook exatamente quem comprou para buscarmos mais pessoas iguais.\",\n    n8n_workflows:\n      \"O gerente que nunca dorme. Ele move os dados do seu anúncio para o seu WhatsApp e CRM em milissegundos.\",\n    lookalike_audiences:\n      \"O poder de encontrar os 'gêmeos' dos seus melhores clientes atuais.\"\n  },\n\n  final_close_sequences: {\n    soft_close:\n      \"Faz sentido para você estruturarmos esse diagnóstico na próxima terça às 14h?\",\n    hard_close:\n      \"O que nos impede de começar a rodar essas campanhas e configurar sua automação ainda esta semana?\",\n    reversal_close:\n      \"Se eu te provar que essa automação se paga apenas recuperando 2 vendas perdidas por mês, teríamos um negócio?\"\n  }\n};\n\n// Adicione este bloco dentro do objeto leticiaMasterFramework\n\n  success_cases_library: [\n    {\n      niche: \"Clínica de Estética / Negócio Local\",\n      client_alias: \"Empresa X\",\n      problem: \"Dependência de indicação e agenda vazia no meio da semana.\",\n      solution: \"Tráfego pago focado em raio de 5km + Script de agendamento rápido.\",\n      result: \"Aumento de 15% nas vendas totais em apenas 30 dias.\",\n      proof_hook: \"Fizemos algo parecido com a Empresa X (setor de estética) e aumentamos as vendas deles em 15% em um mês só ajustando o raio de anúncio.\"\n    },\n    {\n      niche: \"Infoproduto / Educação\",\n      client_alias: \"Expert Y\",\n      problem: \"Leads morrendo no WhatsApp sem resposta humana a tempo.\",\n      solution: \"Automação de triagem via n8n conectada ao WhatsApp.\",\n      result: \"Recuperação de R$ 45k em carrinhos abandonados no primeiro lançamento.\",\n      proof_hook: \"O Expert Y estava perdendo muitos leads por demora. Implementamos a triagem automática e ele recuperou R$ 45k que já estavam 'perdidos' no carrinho.\"\n    },\n    {\n      niche: \"B2B / Serviços\",\n      client_alias: \"Consultoria Z\",\n      problem: \"SDRs perdendo tempo com leads que não tinham orçamento.\",\n      solution: \"Filtro inteligente de qualificação antes de mandar para o humano.\",\n      result: \"Aumento de 70% na produtividade do time comercial.\",\n      proof_hook: \"Na Consultoria Z, o time comercial estava exausto de falar com curiosos. Colocamos um filtro inteligente e a produtividade de fechamento saltou 70%.\"\n    },\n    {\n      niche: \"E-commerce\",\n      client_alias: \"Loja Alpha\",\n      problem: \"Custo por aquisição (CAC) muito alto no tráfego direto.\",\n      solution: \"Funil de remarketing agressivo + Automação de cupom de primeira compra.\",\n      result: \"Redução de 30% no custo por cliente e dobra no faturamento mensal.\",\n      proof_hook: \"A Loja Alpha estava pagando caro por cada cliente. Ajustamos o remarketing e a automação de cupons: o CAC caiu 30% e o faturamento dobrou.\"\n    }\n];\n\nexport default leticiaMasterFramework;\nexport default leticiaSalesAgent;"
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolCode",
+      "typeVersion": 1.3,
+      "position": [
+        1488,
+        320
+      ],
+      "id": "9be5bb26-20d1-4eaa-8ce6-a1cefe6be6e0",
+      "name": "RAG DE VENDA"
+    },
+    {
+      "parameters": {
+        "agent": "openAiFunctionsAgent",
+        "text": "={{ $('Filtro e Limpeza Original').item.json.messageText }}",
+        "options": {
+          "systemMessage": "=Identidade e Autoridade\nNome: Letícia, Gerente de Contas da Virattiva.\n\nPerfil: 26 anos, profissional, perspicaz e extremamente organizada.\n\nVoz: Você fala de forma natural (WhatsApp style), usa termos como \"Perfeito\", \"Entendi seu ponto\", \"Show\". Você nunca usa frases prontas de robô como \"Em que posso ajudar hoje?\".\n\n2️⃣ Fluxo de Operação Obrigatório (Protocolo Inquebrável)\nVocê é a interface humana. Suas decisões seguem esta hierarquia técnica:\n\nConsulta de Contexto: Toda e qualquer resposta deve ser precedida por uma consulta à ferramenta RAG DE VENDA. Você precisa saber quem é a Virattiva antes de abrir a boca.\n\nIdentificação Obrigatória: Se for a primeira interação após a mensagem inicial do lead e você não souber o nome dele, você deve perguntar o nome de forma gentil antes de qualquer diagnóstico.\n\nTriagem de Especialistas:\n\nFoco em Vendas/Anúncios/Clientes ➡️ Chamar Venda Trafego.\n\nFoco em Caos no Whats/Processos/Tempo ➡️ Chamar venda Automação.\n\nRegra Absoluta: Você NUNCA inventa a solução técnica. Você pergunta ao especialista e apenas \"traduz\" o que ele disse para uma linguagem humana e curta.\n\n3️⃣ Inteligência Adaptativa (Longo vs. Curto)\nModo Consultivo (Padrão): Se o lead for vago, leve-o pelo caminho mais longo. Faça perguntas sobre o momento atual dele, dificuldades e objetivos. Demonstre interesse real.\n\nModo Direto (Abortar Missão): Se o lead for objetivo (\"Quanto custa?\", \"Tabela de preços\"), não tente fazer perguntas filosóficas. Responda que os projetos na Virattiva são personalizados e chame o especialista para dar um cenário plausível ou peça o e-mail/agendamento.\n\n4️⃣ Comportamento Anti-Alucinação\nSe você não encontrar a resposta no RAG DE VENDA ou nos especialistas, diga: \"Olha, para eu não te passar nenhuma informação imprecisa, vou validar esse ponto específico com meu time técnico. Mas, em geral, nós [insira algo genérico da Virattiva]...\"\n\nNunca invente preços ou prazos que não foram passados pelas ferramentas.\n\n5️⃣ Estilo de Escrita (WhatsApp Humanizado)\nUse quebras de linha.\n\nUse emojis com moderação (máximo 1 por mensagem).\n\nSe o especialista te devolver um texto longo, resuma-o em 2 ou 3 frases leves.\n\nExemplo de tom: \"Oi! Tudo bem por aqui. Antes de eu te explicar como a gente resolve isso na Virattiva, com quem eu falo?\"\n\n\n[A MENTALIDADE DO PRIMEIRO CONTATO] Seu objetivo não é apresentar a Virattiva, mas sim abrir um loop mental. Você vai agir como se tivesse acabado de dar uma olhada no Instagram, Google ou site da empresa dele e notou um \"furo\".\n\n[REGRAS DE OURO DA ABORDAGEM]\n\nO Nome é a Chave: Use o nome do lead logo no início. Se o campo {{ $json.Nome }} vier como \"Lead\" ou estiver estranho, pergunte: \"Falo com o responsável pela [Empresa]?\".\n\nA Prova de Humanidade: Comece com uma frase curta e uma pergunta de confirmação de identidade.\n\nO \"Sangramento\" Financeiro: Não fale que vende tráfego. Fale que notou que a empresa dele está \"deixando passar oportunidades\" ou que o \"atendimento parece estar sobrecarregado\".\n\n[DIRETRIZES ANTI-ROBÔ]\n\nSem Formalismos: Proibido \"Espero que esteja bem\", \"Venho por meio deste\".\n\nVariação de Tamanho: A primeira mensagem deve ter no máximo 3 parágrafos curtos.\n\nUso do RAG: SEMPRE consulte o RAG DE VENDA para saber quais são os diferenciais reais da Virattiva (Sua Empresa que você trabalha) para o segmento específico do lead (Ex: se for imobiliária, o RAG dirá que vocês são especialistas em leads qualificados para corretores).\n\n[COMPORTAMENTO ADAPTATIVO]\n\nSe o lead responder \"Quem é?\": Responda: \"Sou a Letícia, da Virattiva. Trabalho ajudando empresas como a sua a [Resultado do RAG]. Vi um detalhe aqui na sua operação e achei que valia te dar um toque.\"\n\nSe o lead for ríspido: \"Opa, entendo a correria. Vou deixar o insight aqui e quando você tiver um respiro, a gente se fala. Abraço!\""
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.1,
+      "position": [
+        896,
+        0
+      ],
+      "id": "a53b03b4-01c9-4fb5-8ce9-859a6391d94f",
+      "name": "VENDEDORA LETICIA"
+    },
+    {
+      "parameters": {
+        "authentication": "airtableOAuth2Api",
+        "operation": "search",
+        "base": {
+          "__rl": true,
+          "value": "appDlp6lcO3W0JUEQ",
+          "mode": "list",
+          "cachedResultName": "prospect_entrada",
+          "cachedResultUrl": "https://airtable.com/appDlp6lcO3W0JUEQ"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblqYf7U12RPUB3Hh",
+          "mode": "list",
+          "cachedResultName": "Entrada",
+          "cachedResultUrl": "https://airtable.com/appDlp6lcO3W0JUEQ/tblqYf7U12RPUB3Hh"
+        },
+        "filterByFormula": "AND({Status} = 'PENDENTE', NOT({Telefone / celular} = ''))",
+        "returnAll": false,
+        "limit": 1,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        688,
+        -496
+      ],
+      "id": "ec49dfbf-297c-4be7-82ca-a047a9d63dd9",
+      "name": "Buscar Leads",
+      "credentials": {
+        "airtableOAuth2Api": {
+          "id": "tLWzHetLtDDIxyiL",
+          "name": "Airtable OAunth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "agent": "openAiFunctionsAgent",
+        "text": "=[IDENTIDADE] Você é a Letícia (26 anos), Gerente de Contas na Virattiva. Você está entrando em contato com o lead porque notou algo específico no negócio dele que pode estar gerando perda de dinheiro ou de tempo.\n\n[A MENTALIDADE DO PRIMEIRO CONTATO] Seu objetivo não é apresentar a Virattiva, mas sim abrir um loop mental. Você vai agir como se tivesse acabado de dar uma olhada no Instagram, Google ou site da empresa dele e notou um \"furo\".\n\n[REGRAS DE OURO DA ABORDAGEM]\n\nO Nome é a Chave: Use o nome do lead logo no início. Se o campo {{ $json.Nome }} vier como \"Lead\" ou estiver estranho, pergunte: \"Falo com o responsável pela {{ $json['Nome da empresa'] }}?\".\n\nA Prova de Humanidade: Comece com uma frase curta e uma pergunta de confirmação de identidade.\n\nO \"Sangramento\" Financeiro: Não fale que vende tráfego. Fale que notou que a empresa dele está \"deixando passar oportunidades\" ou que o \"atendimento parece estar sobrecarregado\".\n\n[ESTRUTURA DA PRIMEIRA MENSAGEM (OUTBOUND)]\n\nSaudação Real: \"Oi, {{ $json.Nome }}! Tudo bem?\"\n\nO Motivo (Não Venda): \"Estava dando uma olhada aqui no perfil da {{ $json['Nome da empresa'] }} e notei uma coisa curiosa sobre como vocês estão recebendo novos clientes...\"\n\nO Gancho (Curiosidade): \"Vi que vocês {{ $json.Segmento }} têm um potencial enorme, mas parece que [Problema: o tempo de resposta/falta de anúncios ativos] está limitando o crescimento de vocês hoje. Procede?\"\n\nCTA de Baixa Pressão: \"Fiquei com uma dúvida técnica sobre isso, você é a melhor pessoa para eu falar dois minutinhos?\"\n\n[DIRETRIZES ANTI-ROBÔ]\n\nSem Formalismos: Proibido \"Espero que esteja bem\", \"Venho por meio deste\".\n\nVariação de Tamanho: A primeira mensagem deve ter no máximo 3 parágrafos curtos.\n\nUso do RAG: SEMPRE consulte o RAG DE VENDA para saber quais são os diferenciais reais da Virattiva para o segmento específico do lead (Ex: se for imobiliária, o RAG dirá que vocês são especialistas em leads qualificados para corretores).\n\n[COMPORTAMENTO ADAPTATIVO]\n\nSe o lead responder \"Quem é?\": Responda: \"Sou a Letícia, da Virattiva. Trabalho ajudando empresas como a sua a [Resultado do RAG]. Vi um detalhe aqui na sua operação e achei que valia te dar um toque.\"\n\nSe o lead for ríspido: \"Opa, entendo a correria. Vou deixar o insight aqui e quando você tiver um respiro, a gente se fala. Abraço!\"",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.1,
+      "position": [
+        1120,
+        -496
+      ],
+      "id": "d6ff913c-43a0-4822-b513-f68694aded86",
+      "name": "Gerar Copy IA",
+      "retryOnFail": true,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8080/message/sendText/Number_4847",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "429683C4C977415CAAFCCE10F7D57E11"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "number",
+              "value": "={{ $('Buscar Leads').item.json['Telefone / celular'] }}"
+            },
+            {
+              "name": "text",
+              "value": "={{ $json.output }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "1ccbdeeb-f145-490b-8931-912b6e2be3d7",
+      "name": "Enviar Zap",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1680,
+        -496
+      ]
+    },
+    {
+      "parameters": {
+        "authentication": "airtableOAuth2Api",
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "value": "appDlp6lcO3W0JUEQ",
+          "mode": "list",
+          "cachedResultName": "prospect_entrada",
+          "cachedResultUrl": "https://airtable.com/appDlp6lcO3W0JUEQ"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblqYf7U12RPUB3Hh",
+          "mode": "list",
+          "cachedResultName": "Entrada",
+          "cachedResultUrl": "https://airtable.com/appDlp6lcO3W0JUEQ/tblqYf7U12RPUB3Hh"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "id": "={{ $node[\"Loop 1 por 1\"].json.id }}",
+            "Status": "ABORDADO"
+          },
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": true
+            },
+            {
+              "id": "ID",
+              "displayName": "ID",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": true,
+              "removed": true
+            },
+            {
+              "id": "Nome da empresa",
+              "displayName": "Nome da empresa",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "Nome",
+              "displayName": "Nome",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "Telefone / celular",
+              "displayName": "Telefone / celular",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "Status",
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "options",
+              "options": [
+                {
+                  "name": "RECUSADO",
+                  "value": "RECUSADO"
+                },
+                {
+                  "name": "JA_TEM_TRAFEGO",
+                  "value": "JA_TEM_TRAFEGO"
+                },
+                {
+                  "name": "INTERESSADO",
+                  "value": "INTERESSADO"
+                },
+                {
+                  "name": "ABORDADO",
+                  "value": "ABORDADO"
+                },
+                {
+                  "name": "PENDENTE",
+                  "value": "PENDENTE"
+                }
+              ],
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Segmento",
+              "displayName": "Segmento",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "Historico_ID",
+              "displayName": "Historico_ID",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        1904,
+        -496
+      ],
+      "id": "789f1474-18c8-43a3-8dc1-256907a712c1",
+      "name": "Marcar Abordado",
+      "credentials": {
+        "airtableOAuth2Api": {
+          "id": "tLWzHetLtDDIxyiL",
+          "name": "Airtable OAunth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": "gpt-4o-mini",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1,
+      "position": [
+        1088,
+        -272
+      ],
+      "id": "ab924d9c-7447-43f4-aea7-c7f55c37abf9",
+      "name": "OpenAI Chat Model1",
+      "credentials": {
+        "openAiApi": {
+          "id": "o7TFHlkt63sC0xDy",
+          "name": "OpenAi Key"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('Buscar Leads').item.json['Telefone / celular'] }}",
+        "tableName": "chat_history_prospeccao"
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryPostgresChat",
+      "typeVersion": 1,
+      "position": [
+        1184,
+        -272
+      ],
+      "id": "529b8fd1-58d3-4a24-8981-a6b2bc06235d",
+      "name": "Postgres Chat Memory1",
+      "credentials": {
+        "postgres": {
+          "id": "cnaGiixdt5mqDcDo",
+          "name": "Postgres Prospecção"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 7
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -224,
+        -480
+      ],
+      "id": "4ad039b3-b165-40ce-a224-ca24fc22ab36",
+      "name": "Schedule Trigger"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 1. Verifica se o corpo da requisição e os dados existem\nconst body = $json.body;\nif (!body || !body.data || !body.data.key) {\n  return []; // Aborta silenciosamente se não for uma mensagem válida\n}\n\nconst data = body.data;\n\n// 2. Ignorar se for grupo ou se fui eu que mandei (fromMe)\nif (data.key.remoteJid.includes('@g.us') || data.key.fromMe) {\n  return [];\n}\n\n// 3. Extrair texto da mensagem (considerando diferentes tipos na v2)\nconst messageText = data.message?.conversation || \n                    data.message?.extendedTextMessage?.text || \n                    data.message?.buttonsResponseMessage?.selectedButtonId || \"\";\n\n// 4. Normalizar Telefone para busca no Airtable\n// Remove o @s.whatsapp.net e limpa caracteres não numéricos\nconst phone = data.key.remoteJid.split('@')[0].replace(/\\D/g, '').replace(/^55/, '');\n\nreturn {\n  phone,\n  messageText,\n  remoteJid: data.key.remoteJid,\n  pushName: data.pushName || \"Cliente\"\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        160,
+        0
+      ],
+      "id": "dfa22845-80e7-4f15-a1c2-0144fd24163b",
+      "name": "Filtro e Limpeza Original"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8080/chat/markMessageAsRead/Number_4847",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "429683C4C977415CAAFCCE10F7D57E11"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "number",
+              "value": "={{ $json.remoteJid }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1216,
+        0
+      ],
+      "id": "80060ecd-98c6-43ee-818a-aa826f1f2918",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Cálculo de tempo humano: ~30 caracteres por segundo + um atraso base\nconst text = $node[\"VENDEDORA LETICIA\"].json.output; // Referência ao texto gerado [cite: 133]\nconst textLength = text.length;\n\n// Fórmula: (Comprimento / Constante de Velocidade) + Tempo de Pensar (aleatório)\n// Para 200 caracteres, resultará em aprox. 5 a 7 segundos\nconst waitTime = Math.floor((textLength / 35) + (Math.random() * (4 - 2) + 2));\n\nreturn {\n  waitTimeSeconds: waitTime,\n  text: text\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1424,
+        0
+      ],
+      "id": "17df698f-91d1-4d06-8703-6ccb10aa0636",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "url": "http://host.docker.internal:8080/instance/connectionState/Number_4847",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "429683C4C977415CAAFCCE10F7D57E11"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "97597c87-9806-4cec-8e6d-b19a042ca2c9",
+      "name": "Enviar Zap1",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        208,
+        -480
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8080/chat/sendPresence/Number_4847",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "429683C4C977415CAAFCCE10F7D57E11"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "=\"number\": \"{{ $('Buscar Leads').item.json['Telefone / celular'].replace(/\\D/g, '') }}\",\n  \"presence\": \"composing\",\n  \"delay\": 7000\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1456,
+        -496
+      ],
+      "id": "c18bcfe7-d360-4fef-8b4a-3f22a94bce2f",
+      "name": "HTTP Request1"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "c55724d4-f9b0-45f2-9f38-5bf9e411b4b8",
+              "leftValue": "={{ $json.instance.state }}",
+              "rightValue": "open",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        368,
+        -480
+      ],
+      "id": "30272892-7165-458c-941a-5f9220c878c2",
+      "name": "Instancia Aberta?"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "57cdf3fc-a434-4c32-90fc-8bd8f5deebf4",
+              "leftValue": "={{ $now.hour }}",
+              "rightValue": 7,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            },
+            {
+              "id": "f6ce3044-1742-443d-a92c-929237cc3385",
+              "leftValue": "={{ $now.hour }}",
+              "rightValue": 16,
+              "operator": {
+                "type": "number",
+                "operation": "lt"
+              }
+            },
+            {
+              "id": "162e7572-4d28-427e-8059-7e033dc74418",
+              "leftValue": "={{ $now.weekday }}",
+              "rightValue": 5,
+              "operator": {
+                "type": "number",
+                "operation": "lte"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        -16,
+        -480
+      ],
+      "id": "77fafdfd-ebb7-430d-98d9-565cd1702acd",
+      "name": "É horário comercial?"
+    },
+    {
+      "parameters": {
+        "authentication": "airtableOAuth2Api",
+        "resource": "base",
+        "operation": "getSchema",
+        "base": {
+          "__rl": true,
+          "value": "appDlp6lcO3W0JUEQ",
+          "mode": "list",
+          "cachedResultName": "prospect_entrada",
+          "cachedResultUrl": "https://airtable.com/appDlp6lcO3W0JUEQ"
+        }
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        544,
+        -304
+      ],
+      "id": "fa47acdf-c0ce-43de-83d2-cde9da87628d",
+      "name": "Consulta a Base",
+      "credentials": {
+        "airtableOAuth2Api": {
+          "id": "tLWzHetLtDDIxyiL",
+          "name": "Airtable OAunth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "airtableOAuth2Api",
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "value": "appDlp6lcO3W0JUEQ",
+          "mode": "list",
+          "cachedResultName": "prospect_entrada",
+          "cachedResultUrl": "https://airtable.com/appDlp6lcO3W0JUEQ"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblqYf7U12RPUB3Hh",
+          "mode": "list",
+          "cachedResultName": "Entrada",
+          "cachedResultUrl": "https://airtable.com/appDlp6lcO3W0JUEQ/tblqYf7U12RPUB3Hh"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "id": "={{ $json.id }}",
+            "Status": "ERRO_NA_PROSPECÇÃO"
+          },
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": true
+            },
+            {
+              "id": "ID",
+              "displayName": "ID",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": true,
+              "removed": true
+            },
+            {
+              "id": "Nome da empresa",
+              "displayName": "Nome da empresa",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "Nome",
+              "displayName": "Nome",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "Telefone / celular",
+              "displayName": "Telefone / celular",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "Status",
+              "displayName": "Status",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "options",
+              "options": [
+                {
+                  "name": "RECUSADO",
+                  "value": "RECUSADO"
+                },
+                {
+                  "name": "JA_TEM_TRAFEGO",
+                  "value": "JA_TEM_TRAFEGO"
+                },
+                {
+                  "name": "INTERESSADO",
+                  "value": "INTERESSADO"
+                },
+                {
+                  "name": "ABORDADO",
+                  "value": "ABORDADO"
+                },
+                {
+                  "name": "PENDENTE",
+                  "value": "PENDENTE"
+                },
+                {
+                  "name": "ERRO_NA_PROSPECÇÃO",
+                  "value": "ERRO_NA_PROSPECÇÃO"
+                }
+              ],
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Segmento",
+              "displayName": "Segmento",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            },
+            {
+              "id": "Historico_ID",
+              "displayName": "Historico_ID",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        704,
+        -304
+      ],
+      "id": "dbea13d2-a396-45e9-a715-c69e3e271d5b",
+      "name": "Altera para \"Erro\"",
+      "credentials": {
+        "airtableOAuth2Api": {
+          "id": "tLWzHetLtDDIxyiL",
+          "name": "Airtable OAunth"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "calendar": {
+          "__rl": true,
+          "value": "virattiva@gmail.com",
+          "mode": "list",
+          "cachedResultName": "virattiva@gmail.com"
+        },
+        "start": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Start', `Insira a data o qual o cliente ou lead mencionar e que esteja disponivel na agenda`, 'string') }}",
+        "end": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('End', `As ligações devem durar no máximo 30 min após a hora \"Start\", ou seja, se alguem quiser marcar as horas as 17:00, a hora \"End\" será 17:30 .\n\nNunca deve marcar quando já tiver uma reunião marcada para ou quando estiver ocupado a agenda.`, 'string') }}",
+        "additionalFields": {
+          "attendees": [
+            "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('attendees0_Attendees', `Busque o e-mail do lead na conversa ou nos dados do Airtable. Se ele não informou, Peça seu e-mail para contato.`, 'string') }}"
+          ],
+          "conferenceDataUi": {
+            "conferenceDataValues": {
+              "conferenceSolution": "hangoutsMeet"
+            }
+          },
+          "description": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Description', `Resuma em tópicos: 1. A maior dor do lead. 2. O faturamento atual (se dito). 3. O principal gargalo que impede ele de escalar.'`, 'string') }}",
+          "summary": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('Summary', `Crie um título curto e profissional para a reunião, ex: Diagnóstico de Tráfego - Nome do Lead'`, 'string') }}"
+        }
+      },
+      "type": "n8n-nodes-base.googleCalendarTool",
+      "typeVersion": 1.3,
+      "position": [
+        1376,
+        528
+      ],
+      "id": "b8901c69-88e7-45e2-8598-3ac6ba1471ee",
+      "name": "Agenda reunião",
+      "credentials": {
+        "googleCalendarOAuth2Api": {
+          "id": "5SxDVdmLGXf3WTg3",
+          "name": "Google Calendar Virattiva"
+        }
+      }
+    }
+  ],
+  "pinData": {
+    "Receber Mensagem": [
+      {
+        "json": {
+          "headers": {
+            "content-type": "application/json",
+            "user-agent": "axios/1.7.9",
+            "content-length": "683",
+            "accept-encoding": "gzip, compress, deflate, br",
+            "host": "host.docker.internal:5678",
+            "connection": "keep-alive"
+          },
+          "params": {},
+          "query": {},
+          "body": {
+            "event": "messages.upsert",
+            "instance": "Number_4847",
+            "data": {
+              "key": {
+                "remoteJid": "5511966429800@s.whatsapp.net",
+                "fromMe": false,
+                "id": "3A9BE3BFAC1CC950F7EC"
+              },
+              "pushName": "",
+              "status": "ERROR",
+              "message": {
+                "conversation": "Meu nome é robert",
+                "messageContextInfo": {
+                  "messageSecret": "oZP/6aXIsQEP4QEkYlHLaI+PaYd1UFNy0uWbJWdaZN8="
+                }
+              },
+              "messageType": "conversation",
+              "messageTimestamp": 1770764049,
+              "instanceId": "e7901471-ef4a-4236-8cfd-2baba3f96bc8",
+              "source": "ios"
+            },
+            "destination": "http://host.docker.internal:5678/webhook/webhook-whatsapp",
+            "date_time": "2026-02-10T19:54:16.021Z",
+            "sender": "5511942234847@s.whatsapp.net",
+            "server_url": "http://localhost:8080",
+            "apikey": "CCA6579729E6-48F9-AFEC-C89316402562"
+          },
+          "webhookUrl": "http://localhost:5678/webhook/webhook-whatsapp",
+          "executionMode": "production"
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ]
+  },
+  "connections": {
+    "Receber Mensagem": {
+      "main": [
+        [
+          {
+            "node": "Filtro e Limpeza Original",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Identificar Lead": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Model Inbound": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "VENDEDORA LETICIA",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres Memory Inbound": {
+      "ai_memory": [
+        [
+          {
+            "node": "VENDEDORA LETICIA",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Muda o status da BD": {
+      "ai_tool": [
+        [
+          {
+            "node": "VENDEDORA LETICIA",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "VENDEDORA LETICIA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "venda Automação": {
+      "ai_tool": [
+        [
+          {
+            "node": "VENDEDORA LETICIA",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Venda Trafego": {
+      "ai_tool": [
+        [
+          {
+            "node": "VENDEDORA LETICIA",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Model Inbound2": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "venda Automação",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Model Inbound1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Venda Trafego",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres Memory Inbound1": {
+      "ai_memory": [
+        [
+          {
+            "node": "Venda Trafego",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres Memory Inbound2": {
+      "ai_memory": [
+        [
+          {
+            "node": "venda Automação",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RAG DE VENDA": {
+      "ai_tool": [
+        [
+          {
+            "node": "VENDEDORA LETICIA",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "VENDEDORA LETICIA": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar Leads": {
+      "main": [
+        [
+          {
+            "node": "Gerar Copy IA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gerar Copy IA": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar Zap": {
+      "main": [
+        [
+          {
+            "node": "Marcar Abordado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Marcar Abordado": {
+      "main": [
+        []
+      ]
+    },
+    "OpenAI Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Gerar Copy IA",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres Chat Memory1": {
+      "ai_memory": [
+        [
+          {
+            "node": "Gerar Copy IA",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "É horário comercial?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filtro e Limpeza Original": {
+      "main": [
+        [
+          {
+            "node": "Identificar Lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Enviar Resposta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar Zap1": {
+      "main": [
+        [
+          {
+            "node": "Instancia Aberta?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request1": {
+      "main": [
+        [
+          {
+            "node": "Enviar Zap",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Instancia Aberta?": {
+      "main": [
+        [
+          {
+            "node": "Buscar Leads",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Consulta a Base",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "É horário comercial?": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Enviar Zap1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consulta a Base": {
+      "main": [
+        [
+          {
+            "node": "Altera para \"Erro\"",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Agenda reunião": {
+      "ai_tool": [
+        [
+          {
+            "node": "VENDEDORA LETICIA",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false,
+    "timeSavedMode": "fixed",
+    "timezone": "America/Sao_Paulo",
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "versionId": "50ea811b-df5c-4321-9177-bc59af0035a1",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "3700ca5137e9dbe40a36980bdcb3a3307151d547abf19a8699bb45a299e8b2dd"
+  },
+  "id": "lrdzuC-B4gjui48ADdKmf",
+  "tags": []
+}
