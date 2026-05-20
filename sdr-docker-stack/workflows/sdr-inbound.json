@@ -1,0 +1,369 @@
+{
+  "name": "SDR Inbound - Receber Mensagens WhatsApp",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "sdr-webhook",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 300],
+      "id": "webhook-trigger-01",
+      "name": "Webhook WhatsApp",
+      "webhookId": "sdr-webhook-inbound"
+    },
+    {
+      "parameters": {
+        "jsCode": "// =============================================\n// FILTRO E LIMPEZA DE MENSAGENS (Evolution API v2)\n// Extrai dados relevantes e ignora lixo\n// =============================================\nconst body = $json.body;\n\n// 1. Validação básica\nif (!body || !body.data || !body.data.key) {\n  return []; // Não é mensagem válida\n}\n\nconst data = body.data;\n\n// 2. Ignorar grupos e mensagens que EU mandei\nif (data.key.remoteJid.includes('@g.us') || data.key.fromMe) {\n  return [];\n}\n\n// 3. Extrair texto (suporta vários formatos da v2)\nconst messageText = data.message?.conversation ||\n                    data.message?.extendedTextMessage?.text ||\n                    data.message?.buttonsResponseMessage?.selectedButtonId || '';\n\n// Se não tem texto (imagem, áudio, etc), ignorar por enquanto\nif (!messageText.trim()) {\n  return [];\n}\n\n// 4. Normalizar telefone (remover @s.whatsapp.net e código do país)\nconst rawPhone = data.key.remoteJid.split('@')[0];\nconst phone = rawPhone.replace(/\\D/g, '');\n\n// 5. pushName = nome que aparece no perfil do WhatsApp\nconst pushName = data.pushName || '';\n\nreturn {\n  phone,\n  messageText: messageText.trim(),\n  remoteJid: data.key.remoteJid,\n  pushName,\n  timestamp: new Date().toISOString()\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "id": "filtro-limpeza-01",
+      "name": "Filtro e Limpeza"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/leads?telefone=eq.{{ $json.phone }}&select=*",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_ANON_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_ANON_KEY }}" }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [480, 300],
+      "id": "buscar-lead-supabase-01",
+      "name": "Buscar Lead Supabase"
+    },
+    {
+      "parameters": {
+        "jsCode": "// =============================================\n// PREPARAR CONTEXTO PARA O AGENTE SDR\n// Monta o objeto completo com dados do lead\n// =============================================\nconst filtro = $('Filtro e Limpeza').item.json;\nconst supabaseResult = $json; // Array do Supabase\n\nlet lead = null;\nlet isNewLead = true;\nlet leadId = null;\n\n// Supabase retorna array - se veio com dados, lead existe\nif (Array.isArray(supabaseResult) && supabaseResult.length > 0) {\n  lead = supabaseResult[0];\n  isNewLead = false;\n  leadId = lead.id;\n} else if (supabaseResult && supabaseResult.id) {\n  lead = supabaseResult;\n  isNewLead = false;\n  leadId = lead.id;\n}\n\n// Montar contexto rico para o agente\nreturn {\n  // Dados da mensagem\n  phone: filtro.phone,\n  messageText: filtro.messageText,\n  remoteJid: filtro.remoteJid,\n  pushName: filtro.pushName,\n  timestamp: filtro.timestamp,\n\n  // Dados do lead (do Supabase)\n  isNewLead,\n  leadId,\n  nome_contato: lead?.nome_contato || '',\n  nome_empresa: lead?.nome_empresa || '',\n  segmento: lead?.segmento || 'servicos',\n  status: lead?.status || 'PENDENTE',\n  nome_capturado: lead?.nome_capturado || false,\n  follow_up_count: lead?.follow_up_count || 0,\n  total_mensagens_enviadas: lead?.total_mensagens_enviadas || 0,\n  total_mensagens_recebidas: lead?.total_mensagens_recebidas || 0,\n  observacao: lead?.observacao || ''\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [720, 300],
+      "id": "preparar-contexto-01",
+      "name": "Preparar Contexto"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-new-lead",
+              "leftValue": "={{ $json.isNewLead }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [960, 300],
+      "id": "if-novo-lead-01",
+      "name": "Lead Novo?"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/leads",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_ANON_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_ANON_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=representation" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"telefone\": \"{{ $('Preparar Contexto').item.json.phone }}\",\n  \"nome_contato\": {{ $('Preparar Contexto').item.json.pushName ? '\"' + $('Preparar Contexto').item.json.pushName + '\"' : 'null' }},\n  \"status\": \"EM_CONVERSA\",\n  \"nome_capturado\": {{ $('Preparar Contexto').item.json.pushName ? 'true' : 'false' }},\n  \"data_primeiro_contato\": \"{{ $now.toISO() }}\",\n  \"data_ultimo_contato\": \"{{ $now.toISO() }}\",\n  \"total_mensagens_recebidas\": 1\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1200, 160],
+      "id": "criar-lead-supabase-01",
+      "name": "Criar Lead Supabase"
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/leads?id=eq.{{ $('Preparar Contexto').item.json.leadId }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_ANON_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_ANON_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=representation" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"data_ultimo_contato\": \"{{ $now.toISO() }}\",\n  \"total_mensagens_recebidas\": {{ $('Preparar Contexto').item.json.total_mensagens_recebidas + 1 }},\n  \"status\": {{ $('Preparar Contexto').item.json.status === 'ABORDADO' || $('Preparar Contexto').item.json.status === 'SEM_RESPOSTA' ? '\"EM_CONVERSA\"' : '\"' + $('Preparar Contexto').item.json.status + '\"' }}\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1200, 440],
+      "id": "atualizar-lead-supabase-01",
+      "name": "Atualizar Lead Supabase"
+    },
+    {
+      "parameters": {
+        "jsCode": "// =============================================\n// MERGE: Unifica resultado do lead (novo ou existente)\n// para alimentar o Agente SDR\n// =============================================\nconst contexto = $('Preparar Contexto').item.json;\nconst leadData = $json; // Resultado do CREATE ou UPDATE\n\n// Se Supabase retornou array, pegar primeiro\nconst lead = Array.isArray(leadData) ? leadData[0] : leadData;\n\nreturn {\n  ...contexto,\n  leadId: lead?.id || contexto.leadId,\n  nome_contato: lead?.nome_contato || contexto.nome_contato || contexto.pushName || '',\n  nome_capturado: lead?.nome_capturado || (contexto.pushName ? true : false)\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1440, 300],
+      "id": "merge-lead-01",
+      "name": "Merge Lead Data"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/configuracoes_segmento?segmento=eq.{{ $json.segmento }}&select=*",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_ANON_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_ANON_KEY }}" }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1680, 300],
+      "id": "buscar-config-segmento-01",
+      "name": "Config Segmento"
+    },
+    {
+      "parameters": {
+        "agent": "openAiFunctionsAgent",
+        "text": "={{ $('Merge Lead Data').item.json.messageText }}",
+        "options": {
+          "systemMessage": "=[IDENTIDADE]\nVocê é Letícia Jheniffer, consultora de automação e atendimento da Virattiva. Você tem 26 anos, é profissional, persuasiva e organizada. Você presta serviços de automação inteligente junto com Gabriel, responsável pela implantação técnica.\n\n[CONTEXTO DO LEAD]\n- Telefone: {{ $('Merge Lead Data').item.json.phone }}\n- Nome do contato: {{ $('Merge Lead Data').item.json.nome_contato || 'NÃO INFORMADO' }}\n- Nome da empresa: {{ $('Merge Lead Data').item.json.nome_empresa || 'NÃO INFORMADO' }}\n- Segmento: {{ $('Merge Lead Data').item.json.segmento || 'NÃO IDENTIFICADO' }}\n- Status atual: {{ $('Merge Lead Data').item.json.status }}\n- Nome já capturado: {{ $('Merge Lead Data').item.json.nome_capturado }}\n- Mensagens trocadas: {{ $('Merge Lead Data').item.json.total_mensagens_enviadas + $('Merge Lead Data').item.json.total_mensagens_recebidas }}\n- Observação: {{ $('Merge Lead Data').item.json.observacao || 'Nenhuma' }}\n\n[REGRA ABSOLUTA: CAPTURA DE NOME]\nSe nome_capturado = false E nome_contato = 'NÃO INFORMADO':\n→ Você DEVE perguntar o nome de forma natural ANTES de qualquer diagnóstico.\n→ Exemplos: \"Com quem eu falo?\", \"Posso saber seu nome?\", \"Antes de tudo, com quem converso?\"\n→ Se o lead já disse o nome na mensagem atual, extraia-o e use normalmente.\n→ NUNCA prossiga com diagnóstico sem saber o nome.\n\n[ESTILO DE COMUNICAÇÃO]\n- WhatsApp: mensagens curtas (máx 3 parágrafos)\n- Use quebras de linha\n- Máximo 1 emoji por mensagem\n- Nunca use listas com bullet points\n- Varie o tamanho das frases\n- Use expressões como \"Pois é,\", \"Olha,\", \"Entendi seu ponto\", \"Show\"\n- PROIBIDO: \"Espero que esteja bem\", \"Venho por meio deste\", linguagem formal\n- PROIBIDO: Usar termos como \"chatbot\", \"n8n\", \"API\", \"webhook\", \"IA\" nas primeiras 5 mensagens\n- Use: \"organização de processos\", \"estrutura de atendimento\", \"assistente digital\"\n\n[FLUXO DE PERSUASÃO - 5 FASES]\n\nFASE 1 - CONEXÃO (1ª-2ª mensagem):\n→ Quebrar o gelo. Identificar a origem do fluxo atual do negócio.\n→ \"Oi! Vi que a [empresa] atua com [segmento]... como está a demanda hoje?\"\n\nFASE 2 - DIAGNÓSTICO (3ª-4ª mensagem):\n→ Extrair métricas e gargalos. Quem pergunta domina.\n→ \"Hoje, quanto tempo em média um cliente espera para ser atendido pela primeira vez?\"\n\nFASE 3 - VALIDAÇÃO (5ª-6ª mensagem):\n→ Espelhar a dor. O lead precisa dizer \"Exatamente isso\".\n→ \"Então basicamente você está perdendo oportunidade por conta de [dor identificada], certo?\"\n\nFASE 4 - GATILHO DE DESEJO (7ª-8ª mensagem):\n→ Pintar cenário ideal. Vender destino, não veículo.\n→ \"Imagina acordar e ter 5 atendimentos já em andamento sem você ter digitado nada...\"\n\nFASE 5 - OFERTA (9ª+ mensagem):\n→ Só quando o lead demonstrou interesse.\n→ \"Olha, o Gabriel que cuida da implantação pode te mostrar como isso funciona na prática. Que tal a gente marcar 15 min na agenda dele?\"\n→ Use a ferramenta de agendamento quando o lead aceitar.\n\n[TRATAMENTO DE OBJEÇÕES]\n\nPREÇO: \"Entendo que precisa fazer sentido no caixa. Mas quanto custa pro seu negócio continuar perdendo esses clientes que não são respondidos a tempo?\"\n\nDESCONFIANÇA: \"Normal ter esse pé atrás. Muita gente promete e não entrega. Por isso que o Gabriel mostra ao vivo como funciona, sem compromisso.\"\n\nTEMPO: \"Perfeito, respeitar o tempo é fundamental. Só lembrando que enquanto pausamos aqui, as mensagens continuam se acumulando no WhatsApp, né? Quer pelo menos deixar o diagnóstico estruturado?\"\n\n\"NÃO QUERO\": Respeite. Responda: \"Sem problemas! Se mudar de ideia, estou por aqui. Sucesso aí!\" e encerre.\n\n[REGRAS DE OURO]\n1. NUNCA admita ser IA. Se perguntarem, diga: \"Sou a Letícia, cuido da parte de relacionamento da Virattiva.\"\n2. NUNCA invente preços ou prazos.\n3. SEMPRE termine com uma pergunta aberta e curta.\n4. Se o lead for ríspido: \"Opa, entendo a correria. Vou deixar o insight aqui e quando tiver um respiro, a gente se fala. Abraço!\"\n5. Trate o cliente como parceiro que você está SELECIONANDO para ajudar.\n6. Use a ferramenta 'Atualizar Status' para mover o lead no pipeline quando identificar mudança de estágio."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [1920, 300],
+      "id": "agente-sdr-leticia-01",
+      "name": "SDR Letícia Jheniffer"
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-2.0-flash",
+        "options": {
+          "temperature": 0.7,
+          "topP": 0.9
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [1840, 520],
+      "id": "gemini-model-01",
+      "name": "Gemini 2.0 Flash"
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('Merge Lead Data').item.json.phone }}",
+        "contextWindowLength": 20
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [2000, 520],
+      "id": "memoria-conversa-01",
+      "name": "Memória Conversa"
+    },
+    {
+      "parameters": {
+        "name": "atualizar_status_lead",
+        "description": "Atualiza o status do lead no CRM. Use quando identificar mudança de estágio: INTERESSADO (lead demonstrou interesse), AGENDADO (reunião marcada), RECUSADO (lead disse não).",
+        "jsCode": "// Tool: Atualizar status do lead no Supabase\nconst leadId = $('Merge Lead Data').item.json.leadId;\nconst novoStatus = $fromAI('status', 'O novo status do lead: INTERESSADO, AGENDADO ou RECUSADO', 'string');\nconst motivo = $fromAI('motivo', 'Se recusado, qual o motivo. Se não recusado, deixe vazio.', 'string');\n\nconst body = {\n  status: novoStatus\n};\n\nif (novoStatus === 'RECUSADO' && motivo) {\n  body.motivo_recusa = motivo;\n}\n\nreturn {\n  leadId,\n  novoStatus,\n  motivo,\n  mensagem: `Status atualizado para ${novoStatus}`\n};"
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolCode",
+      "typeVersion": 1.3,
+      "position": [2160, 520],
+      "id": "tool-atualizar-status-01",
+      "name": "Atualizar Status"
+    },
+    {
+      "parameters": {
+        "name": "extrair_nome_lead",
+        "description": "Extrai o nome do lead da mensagem quando ele se apresenta. Use quando o lead informar seu nome na conversa.",
+        "jsCode": "// Tool: Extrair nome e atualizar no Supabase\nconst leadId = $('Merge Lead Data').item.json.leadId;\nconst nome = $fromAI('nome', 'O nome que o lead informou na conversa', 'string');\n\nreturn {\n  leadId,\n  nome_extraido: nome,\n  mensagem: `Nome capturado: ${nome}`\n};"
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolCode",
+      "typeVersion": 1.3,
+      "position": [2320, 520],
+      "id": "tool-extrair-nome-01",
+      "name": "Extrair Nome"
+    },
+    {
+      "parameters": {
+        "jsCode": "// =============================================\n// HUMANIZAR TEMPO DE RESPOSTA\n// Calcula delay baseado no tamanho do texto\n// =============================================\nconst text = $json.output || '';\nconst textLength = text.length;\n\n// Fórmula: (caracteres / velocidade) + tempo de \"pensar\" aleatório\nconst waitTime = Math.floor((textLength / 35) + (Math.random() * (4 - 2) + 2));\n\nreturn {\n  waitTimeSeconds: waitTime,\n  responseText: text,\n  phone: $('Merge Lead Data').item.json.phone,\n  remoteJid: $('Merge Lead Data').item.json.remoteJid,\n  leadId: $('Merge Lead Data').item.json.leadId\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2400, 300],
+      "id": "humanizar-delay-01",
+      "name": "Humanizar Delay"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://api:8080/message/sendText/{{ $env.EVOLUTION_INSTANCE || 'Number_4847' }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.AUTHENTICATION_API_KEY }}" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"number\": \"{{ $json.remoteJid }}\",\n  \"text\": \"{{ $json.responseText }}\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2640, 300],
+      "id": "enviar-whatsapp-01",
+      "name": "Enviar WhatsApp"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/mensagens",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_ANON_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_ANON_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "=[\n  {\n    \"lead_id\": \"{{ $json.leadId }}\",\n    \"direcao\": \"RECEBIDA\",\n    \"conteudo\": \"{{ $('Merge Lead Data').item.json.messageText }}\",\n    \"remetente\": \"LEAD\",\n    \"tipo_mensagem\": \"texto\"\n  },\n  {\n    \"lead_id\": \"{{ $json.leadId }}\",\n    \"direcao\": \"ENVIADA\",\n    \"conteudo\": \"{{ $json.responseText }}\",\n    \"remetente\": \"LETICIA_SDR\",\n    \"tipo_mensagem\": \"texto\"\n  }\n]",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2880, 300],
+      "id": "salvar-mensagens-01",
+      "name": "Salvar Mensagens"
+    }
+  ],
+  "connections": {
+    "Webhook WhatsApp": {
+      "main": [
+        [{ "node": "Filtro e Limpeza", "type": "main", "index": 0 }]
+      ]
+    },
+    "Filtro e Limpeza": {
+      "main": [
+        [{ "node": "Buscar Lead Supabase", "type": "main", "index": 0 }]
+      ]
+    },
+    "Buscar Lead Supabase": {
+      "main": [
+        [{ "node": "Preparar Contexto", "type": "main", "index": 0 }]
+      ]
+    },
+    "Preparar Contexto": {
+      "main": [
+        [{ "node": "Lead Novo?", "type": "main", "index": 0 }]
+      ]
+    },
+    "Lead Novo?": {
+      "main": [
+        [{ "node": "Criar Lead Supabase", "type": "main", "index": 0 }],
+        [{ "node": "Atualizar Lead Supabase", "type": "main", "index": 0 }]
+      ]
+    },
+    "Criar Lead Supabase": {
+      "main": [
+        [{ "node": "Merge Lead Data", "type": "main", "index": 0 }]
+      ]
+    },
+    "Atualizar Lead Supabase": {
+      "main": [
+        [{ "node": "Merge Lead Data", "type": "main", "index": 0 }]
+      ]
+    },
+    "Merge Lead Data": {
+      "main": [
+        [{ "node": "Config Segmento", "type": "main", "index": 0 }]
+      ]
+    },
+    "Config Segmento": {
+      "main": [
+        [{ "node": "SDR Letícia Jheniffer", "type": "main", "index": 0 }]
+      ]
+    },
+    "Gemini 2.0 Flash": {
+      "ai_languageModel": [
+        [{ "node": "SDR Letícia Jheniffer", "type": "ai_languageModel", "index": 0 }]
+      ]
+    },
+    "Memória Conversa": {
+      "ai_memory": [
+        [{ "node": "SDR Letícia Jheniffer", "type": "ai_memory", "index": 0 }]
+      ]
+    },
+    "Atualizar Status": {
+      "ai_tool": [
+        [{ "node": "SDR Letícia Jheniffer", "type": "ai_tool", "index": 0 }]
+      ]
+    },
+    "Extrair Nome": {
+      "ai_tool": [
+        [{ "node": "SDR Letícia Jheniffer", "type": "ai_tool", "index": 0 }]
+      ]
+    },
+    "SDR Letícia Jheniffer": {
+      "main": [
+        [{ "node": "Humanizar Delay", "type": "main", "index": 0 }]
+      ]
+    },
+    "Humanizar Delay": {
+      "main": [
+        [{ "node": "Enviar WhatsApp", "type": "main", "index": 0 }]
+      ]
+    },
+    "Enviar WhatsApp": {
+      "main": [
+        [{ "node": "Salvar Mensagens", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "active": false
+}

@@ -68,6 +68,7 @@ services:
     environment:
       - EVOLUTION_URL=http://api:8080
       - EVOLUTION_INSTANCE=Number_4847
+      - AUTHENTICATION_API_KEY=${AUTHENTICATION_API_KEY}
       - N8N_BASIC_AUTH_ACTIVE=true
       - N8N_BASIC_AUTH_USER=admin
       - N8N_BASIC_AUTH_PASSWORD=admin123
@@ -76,6 +77,9 @@ services:
       - WEBHOOK_URL=http://localhost:5678
       - N8N_HOST=0.0.0.0
       - N8N_PORT=5678
+      # Supabase (para workflows acessarem via $env)
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
     networks:
       - evolution-net
     depends_on:

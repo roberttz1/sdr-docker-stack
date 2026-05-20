@@ -70,7 +70,7 @@ Todas as portas externas estão mapeadas no `localhost` para evitar conflitos de
 Para evitar atritos com chaves de API HTTP, use estes atalhos de terminal direto no seu Docker local:
 
 ### Importar um novo Workflow (.json) para o n8n:
-1. Salve o JSON do seu workflow localmente (ex: `workflow_teste.json`).
+1. Salve o JSON do seu workflow localmente na pasta "Workflows_n8n"  (ex: `Workflows_n8n\workflow_teste.json`).
 2. Copie para dentro do container do n8n:
    ```powershell
    docker cp workflow_teste.json evolution-n8n-1:/tmp/workflow_teste.json
