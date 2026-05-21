@@ -1,0 +1,225 @@
+{
+  "name": "SDR Follow-up - Recontato Automático",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 2
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 300],
+      "id": "schedule-followup",
+      "name": "A cada 2 horas"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Verificar horário comercial (seg-sex, 9h-17h)\nconst now = new Date();\nconst hora = now.getHours();\nconst dia = now.getDay();\nif (dia >= 1 && dia <= 5 && hora >= 9 && hora < 17) {\n  return { ok: true };\n}\nreturn [];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "id": "check-horario-fu",
+      "name": "Horário Comercial?"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/leads?proximo_followup=lt.{{ $now.toISO() }}&status=in.(ABORDADO,SEM_RESPOSTA)&follow_up_count=lt.3&select=*&order=proximo_followup.asc&limit=1",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_ANON_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_ANON_KEY }}" }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [480, 300],
+      "id": "buscar-followup",
+      "name": "Buscar Lead p/ Follow-up"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 },
+          "conditions": [
+            {
+              "id": "cond-has-lead-fu",
+              "leftValue": "={{ $json.length }}",
+              "rightValue": 0,
+              "operator": { "type": "number", "operation": "gt" }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [720, 300],
+      "id": "if-tem-followup",
+      "name": "Tem Lead?"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extrair dados do lead para follow-up\nconst leads = $('Buscar Lead p/ Follow-up').item.json;\nconst lead = Array.isArray(leads) ? leads[0] : leads;\n\nreturn {\n  leadId: lead.id,\n  phone: lead.telefone,\n  remoteJid: lead.telefone + '@s.whatsapp.net',\n  nome_contato: lead.nome_contato || '',\n  nome_empresa: lead.nome_empresa || '',\n  segmento: lead.segmento || 'servicos',\n  follow_up_count: lead.follow_up_count || 0,\n  observacao: lead.observacao || ''\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [960, 200],
+      "id": "extrair-followup",
+      "name": "Extrair Dados"
+    },
+    {
+      "parameters": {
+        "agent": "openAiFunctionsAgent",
+        "text": "=MISSÃO: Gerar mensagem de FOLLOW-UP #{{ $json.follow_up_count + 1 }} para este lead que NÃO respondeu.\n\nDADOS:\n- Nome: {{ $json.nome_contato || 'NÃO INFORMADO' }}\n- Empresa: {{ $json.nome_empresa || 'NÃO INFORMADA' }}\n- Segmento: {{ $json.segmento }}\n- Follow-ups já enviados: {{ $json.follow_up_count }}\n\nGere UMA mensagem curta de reengajamento.",
+        "options": {
+          "systemMessage": "=[IDENTIDADE]\nVocê é Letícia Jheniffer da Virattiva.\n\n[MISSÃO]\nGerar mensagens de FOLLOW-UP para leads que não responderam a abordagem anterior.\n\n[REGRAS POR NÚMERO DO FOLLOW-UP]\n\nFOLLOW-UP #1 (24h depois):\n- Tom: Leve e descontraído\n- Estratégia: Lembrete casual\n- Ex: \"Oi, [Nome]! Passou rápido hein... só passando pra ver se conseguiu dar uma olhada no que te mandei. Sem pressa! 😊\"\n\nFOLLOW-UP #2 (48h depois):\n- Tom: Agregar valor\n- Estratégia: Compartilhar um insight relevante\n- Ex: \"[Nome], lembrei de você quando vi um caso de uma [segmento] aqui da região que estava com o mesmo desafio. Eles resolveram de um jeito bem interessante... quer que eu te conte?\"\n\nFOLLOW-UP #3 (72h depois - ÚLTIMO):\n- Tom: Encerramento elegante\n- Estratégia: Dar autonomia ao lead\n- Ex: \"Oi, [Nome]! Não quero ser inconveniente, então vou parar por aqui. Se em algum momento isso fizer sentido pra vocês, é só me chamar. Desejo sucesso! 🙌\"\n\n[PROIBIÇÕES]\n- NUNCA seja agressivo ou insistente\n- NUNCA mande mensagens longas\n- NUNCA pressione para venda\n- NUNCA repita a mesma mensagem dos follow-ups anteriores\n- Máximo 2-3 linhas por follow-up"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [1200, 200],
+      "id": "agente-followup",
+      "name": "Gerar Follow-up"
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-2.0-flash",
+        "options": { "temperature": 0.7 }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [1200, 420],
+      "id": "gemini-followup",
+      "name": "Gemini Flash"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://api:8080/message/sendText/{{ $env.EVOLUTION_INSTANCE || 'Number_4847' }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.AUTHENTICATION_API_KEY }}" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"number\": \"{{ $('Extrair Dados').item.json.phone }}\",\n  \"text\": \"{{ $json.output }}\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1440, 200],
+      "id": "enviar-followup",
+      "name": "Enviar WhatsApp"
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/leads?id=eq.{{ $('Extrair Dados').item.json.leadId }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_ANON_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_ANON_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"follow_up_count\": {{ $('Extrair Dados').item.json.follow_up_count + 1 }},\n  \"data_ultimo_contato\": \"{{ $now.toISO() }}\",\n  \"total_mensagens_enviadas\": {{ $('Extrair Dados').item.json.follow_up_count + 2 }},\n  \"proximo_followup\": {{ $('Extrair Dados').item.json.follow_up_count >= 2 ? 'null' : '\"' + $now.plus({hours: 24}).toISO() + '\"' }},\n  \"status\": {{ $('Extrair Dados').item.json.follow_up_count >= 2 ? '\"SEM_RESPOSTA\"' : '\"ABORDADO\"' }}\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1680, 200],
+      "id": "atualizar-followup",
+      "name": "Atualizar Follow-up"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/mensagens",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_ANON_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_ANON_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"lead_id\": \"{{ $('Extrair Dados').item.json.leadId }}\",\n  \"direcao\": \"ENVIADA\",\n  \"conteudo\": \"{{ $('Gerar Follow-up').item.json.output }}\",\n  \"remetente\": \"LETICIA_SDR\",\n  \"tipo_mensagem\": \"follow_up\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1920, 200],
+      "id": "salvar-followup",
+      "name": "Salvar Mensagem"
+    }
+  ],
+  "connections": {
+    "A cada 2 horas": {
+      "main": [
+        [{ "node": "Horário Comercial?", "type": "main", "index": 0 }]
+      ]
+    },
+    "Horário Comercial?": {
+      "main": [
+        [{ "node": "Buscar Lead p/ Follow-up", "type": "main", "index": 0 }]
+      ]
+    },
+    "Buscar Lead p/ Follow-up": {
+      "main": [
+        [{ "node": "Tem Lead?", "type": "main", "index": 0 }]
+      ]
+    },
+    "Tem Lead?": {
+      "main": [
+        [{ "node": "Extrair Dados", "type": "main", "index": 0 }],
+        []
+      ]
+    },
+    "Extrair Dados": {
+      "main": [
+        [{ "node": "Gerar Follow-up", "type": "main", "index": 0 }]
+      ]
+    },
+    "Gemini Flash": {
+      "ai_languageModel": [
+        [{ "node": "Gerar Follow-up", "type": "ai_languageModel", "index": 0 }]
+      ]
+    },
+    "Gerar Follow-up": {
+      "main": [
+        [{ "node": "Enviar WhatsApp", "type": "main", "index": 0 }]
+      ]
+    },
+    "Enviar WhatsApp": {
+      "main": [
+        [{ "node": "Atualizar Follow-up", "type": "main", "index": 0 }]
+      ]
+    },
+    "Atualizar Follow-up": {
+      "main": [
+        [{ "node": "Salvar Mensagem", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

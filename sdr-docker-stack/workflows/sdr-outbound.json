@@ -1,0 +1,345 @@
+{
+  "name": "SDR Outbound - Disparo via Google Sheets",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 15
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 300],
+      "id": "schedule-trigger-out",
+      "name": "A cada 15 min"
+    },
+    {
+      "parameters": {
+        "jsCode": "// =============================================\n// VERIFICAR HORÁRIO COMERCIAL\n// Só dispara em dias úteis, 8h-18h\n// =============================================\nconst now = new Date();\nconst hora = now.getHours();\nconst diaSemana = now.getDay(); // 0=dom, 6=sab\n\n// Dias úteis (seg-sex) e horário comercial (8h-18h)\nif (diaSemana >= 1 && diaSemana <= 5 && hora >= 8 && hora < 18) {\n  return { horarioValido: true, hora, diaSemana };\n}\n\n// Fora do horário — abortar silenciosamente\nreturn [];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [240, 300],
+      "id": "check-horario-out",
+      "name": "Horário Comercial?"
+    },
+    {
+      "parameters": {
+        "url": "http://api:8080/instance/connectionState/{{ $env.EVOLUTION_INSTANCE || 'Number_4847' }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.AUTHENTICATION_API_KEY }}" }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [480, 300],
+      "id": "check-instancia-out",
+      "name": "Instância Conectada?"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 },
+          "conditions": [
+            {
+              "id": "cond-open",
+              "leftValue": "={{ $json.instance?.state }}",
+              "rightValue": "open",
+              "operator": { "type": "string", "operation": "equals" }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [720, 300],
+      "id": "if-instancia-open-out",
+      "name": "WhatsApp Online?"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/leads?status=eq.PENDENTE&select=*&order=created_at.asc&limit=1",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_ANON_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_ANON_KEY }}" }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [960, 200],
+      "id": "buscar-lead-pendente-out",
+      "name": "Buscar Lead PENDENTE"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict", "version": 2 },
+          "conditions": [
+            {
+              "id": "cond-has-lead",
+              "leftValue": "={{ $json.length }}",
+              "rightValue": 0,
+              "operator": { "type": "number", "operation": "gt" }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1200, 200],
+      "id": "if-tem-lead-out",
+      "name": "Tem Lead?"
+    },
+    {
+      "parameters": {
+        "jsCode": "// =============================================\n// EXTRAIR DADOS DO LEAD PARA O AGENTE\n// =============================================\nconst leads = $('Buscar Lead PENDENTE').item.json;\nconst lead = Array.isArray(leads) ? leads[0] : leads;\n\nreturn {\n  leadId: lead.id,\n  phone: lead.telefone,\n  remoteJid: lead.telefone + '@s.whatsapp.net',\n  nome_contato: lead.nome_contato || '',\n  nome_empresa: lead.nome_empresa || '',\n  segmento: lead.segmento || 'servicos',\n  cidade: lead.cidade || '',\n  origem: lead.origem || '',\n  observacao: lead.observacao || '',\n  isFirstContact: true\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1440, 200],
+      "id": "extrair-lead-out",
+      "name": "Extrair Dados Lead"
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/configuracoes_segmento?segmento=eq.{{ $json.segmento }}&select=*",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_ANON_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_ANON_KEY }}" }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1680, 200],
+      "id": "config-segmento-out",
+      "name": "Config Segmento"
+    },
+    {
+      "parameters": {
+        "agent": "openAiFunctionsAgent",
+        "text": "=MISSÃO: Gerar a PRIMEIRA MENSAGEM de prospecção fria para este lead.\n\nDADOS DO LEAD:\n- Nome: {{ $('Extrair Dados Lead').item.json.nome_contato || 'NÃO INFORMADO' }}\n- Empresa: {{ $('Extrair Dados Lead').item.json.nome_empresa || 'NÃO INFORMADA' }}\n- Segmento: {{ $('Extrair Dados Lead').item.json.segmento }}\n- Cidade: {{ $('Extrair Dados Lead').item.json.cidade || 'NÃO INFORMADA' }}\n- Origem: {{ $('Extrair Dados Lead').item.json.origem || 'NÃO INFORMADA' }}\n- Observação: {{ $('Extrair Dados Lead').item.json.observacao || 'Nenhuma' }}\n\nGere UMA mensagem de primeiro contato seguindo as regras do seu prompt de sistema.",
+        "options": {
+          "systemMessage": "=[IDENTIDADE]\nVocê é Letícia Jheniffer, consultora de automação e atendimento da Virattiva. Você trabalha junto com Gabriel, responsável pela implantação técnica das automações.\n\n[MISSÃO]\nGerar mensagens de PRIMEIRO CONTATO (outbound/venda fria) para leads que nunca falaram com você. A mensagem deve:\n1. Ser curta (máx 3 parágrafos)\n2. Parecer 100% humana (WhatsApp style)\n3. Abrir um loop de curiosidade\n4. Terminar com uma pergunta aberta\n\n[REGRA DO NOME]\n- Se o nome do lead foi informado: use-o no início.\n  Ex: \"Oi, [Nome]! Tudo bem?\"\n- Se o nome NÃO foi informado MAS tem empresa:\n  Ex: \"Oi! Falo com o responsável pela [Empresa]?\"\n- Se NÃO tem nome NEM empresa:\n  Ex: \"Oi! Tudo bem? Vi que você atua na área de [segmento]...\"\n\n[ESTRUTURA DA MENSAGEM]\n1. Saudação natural (com nome ou empresa se disponível)\n2. Motivo do contato (NÃO venda direta — curiosidade/observação)\n3. Pergunta de engajamento (aberta, curta, que provoque resposta)\n\n[EXEMPLOS POR SEGMENTO]\n\nCLÍNICA:\n\"Oi, [Nome]! Tudo bem?\nEstava dando uma olhada no perfil da [Empresa] e notei que vocês têm um fluxo bem legal de pacientes... mas me surgiu uma dúvida sobre como vocês estão lidando com o volume de mensagens no WhatsApp.\nVocês estão conseguindo responder todo mundo rápido ou tem escapado alguns?\"\n\nIMOBILIÁRIA:\n\"Oi! Falo com o responsável pela [Empresa]?\nEstava pesquisando sobre imobiliárias na região de [Cidade] e a de vocês chamou minha atenção. Fiquei curiosa sobre uma coisa...\nHoje, quando um comprador manda mensagem perguntando sobre um imóvel, em quanto tempo ele recebe a primeira resposta?\"\n\nLOJA:\n\"Oi, [Nome]! Tudo certo?\nVi que a [Empresa] tem um catálogo bem bacana. Me surgiu uma dúvida técnica sobre a operação de vocês...\nHoje, quando um cliente manda mensagem perguntando preço ou disponibilidade, como funciona o atendimento? Tem alguém dedicado ou fica no geral?\"\n\n[PROIBIÇÕES ABSOLUTAS]\n- NUNCA diga \"Sou da Virattiva e quero oferecer...\"\n- NUNCA use linguagem formal (\"Prezado\", \"Venho por meio deste\")\n- NUNCA use bullet points ou listas\n- NUNCA mencione IA, chatbot, automação, n8n nas primeiras mensagens\n- NUNCA pareça um vendedor desesperado\n- NUNCA mande mensagens longas (mais de 5 linhas)\n\n[TOM]\nVocê é uma profissional segura que está SELECIONANDO clientes para ajudar, não mendigando atenção. Fale como se estivesse digitando no celular."
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [1920, 200],
+      "id": "agente-outbound-01",
+      "name": "Gerar Primeira Mensagem"
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-2.0-flash",
+        "options": {
+          "temperature": 0.8,
+          "topP": 0.95
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [1920, 420],
+      "id": "gemini-outbound-01",
+      "name": "Gemini 2.0 Flash"
+    },
+    {
+      "parameters": {
+        "jsCode": "// =============================================\n// SIMULAR DIGITAÇÃO HUMANA ANTES DE ENVIAR\n// =============================================\nconst text = $json.output || '';\nconst textLength = text.length;\nconst waitTime = Math.floor((textLength / 35) + (Math.random() * (4 - 2) + 2));\n\nreturn {\n  waitTimeSeconds: waitTime,\n  responseText: text,\n  phone: $('Extrair Dados Lead').item.json.phone,\n  remoteJid: $('Extrair Dados Lead').item.json.remoteJid,\n  leadId: $('Extrair Dados Lead').item.json.leadId\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2160, 200],
+      "id": "humanizar-outbound-01",
+      "name": "Humanizar Delay"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://api:8080/chat/sendPresence/{{ $env.EVOLUTION_INSTANCE || 'Number_4847' }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.AUTHENTICATION_API_KEY }}" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"number\": \"{{ $json.phone }}\",\n  \"presence\": \"composing\",\n  \"delay\": {{ $json.waitTimeSeconds * 1000 }}\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2400, 200],
+      "id": "enviar-presence-out",
+      "name": "Simular Digitação"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://api:8080/message/sendText/{{ $env.EVOLUTION_INSTANCE || 'Number_4847' }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.AUTHENTICATION_API_KEY }}" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"number\": \"{{ $json.phone }}\",\n  \"text\": \"{{ $json.responseText }}\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2640, 200],
+      "id": "enviar-whatsapp-out",
+      "name": "Enviar WhatsApp"
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/leads?id=eq.{{ $json.leadId }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_ANON_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_ANON_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"status\": \"ABORDADO\",\n  \"data_primeiro_contato\": \"{{ $now.toISO() }}\",\n  \"data_ultimo_contato\": \"{{ $now.toISO() }}\",\n  \"total_mensagens_enviadas\": 1,\n  \"proximo_followup\": \"{{ $now.plus({hours: 24}).toISO() }}\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [2880, 200],
+      "id": "marcar-abordado-out",
+      "name": "Marcar ABORDADO"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/mensagens",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_ANON_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_ANON_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"lead_id\": \"{{ $json.leadId }}\",\n  \"direcao\": \"ENVIADA\",\n  \"conteudo\": \"{{ $('Humanizar Delay').item.json.responseText }}\",\n  \"remetente\": \"LETICIA_SDR\",\n  \"tipo_mensagem\": \"primeiro_contato\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [3120, 200],
+      "id": "salvar-msg-outbound-01",
+      "name": "Salvar Mensagem"
+    }
+  ],
+  "connections": {
+    "A cada 15 min": {
+      "main": [
+        [{ "node": "Horário Comercial?", "type": "main", "index": 0 }]
+      ]
+    },
+    "Horário Comercial?": {
+      "main": [
+        [{ "node": "Instância Conectada?", "type": "main", "index": 0 }]
+      ]
+    },
+    "Instância Conectada?": {
+      "main": [
+        [{ "node": "WhatsApp Online?", "type": "main", "index": 0 }]
+      ]
+    },
+    "WhatsApp Online?": {
+      "main": [
+        [{ "node": "Buscar Lead PENDENTE", "type": "main", "index": 0 }],
+        []
+      ]
+    },
+    "Buscar Lead PENDENTE": {
+      "main": [
+        [{ "node": "Tem Lead?", "type": "main", "index": 0 }]
+      ]
+    },
+    "Tem Lead?": {
+      "main": [
+        [{ "node": "Extrair Dados Lead", "type": "main", "index": 0 }],
+        []
+      ]
+    },
+    "Extrair Dados Lead": {
+      "main": [
+        [{ "node": "Config Segmento", "type": "main", "index": 0 }]
+      ]
+    },
+    "Config Segmento": {
+      "main": [
+        [{ "node": "Gerar Primeira Mensagem", "type": "main", "index": 0 }]
+      ]
+    },
+    "Gemini 2.0 Flash": {
+      "ai_languageModel": [
+        [{ "node": "Gerar Primeira Mensagem", "type": "ai_languageModel", "index": 0 }]
+      ]
+    },
+    "Gerar Primeira Mensagem": {
+      "main": [
+        [{ "node": "Humanizar Delay", "type": "main", "index": 0 }]
+      ]
+    },
+    "Humanizar Delay": {
+      "main": [
+        [{ "node": "Simular Digitação", "type": "main", "index": 0 }]
+      ]
+    },
+    "Simular Digitação": {
+      "main": [
+        [{ "node": "Enviar WhatsApp", "type": "main", "index": 0 }]
+      ]
+    },
+    "Enviar WhatsApp": {
+      "main": [
+        [{ "node": "Marcar ABORDADO", "type": "main", "index": 0 }]
+      ]
+    },
+    "Marcar ABORDADO": {
+      "main": [
+        [{ "node": "Salvar Mensagem", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "active": false
+}
