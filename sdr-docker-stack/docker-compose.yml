@@ -85,7 +85,8 @@ services:
       - WEBHOOK_URL=http://localhost:5678
       - N8N_HOST=0.0.0.0
       - N8N_PORT=5678
-      - NODE_FUNCTION_ALLOW_ENV=SUPABASE_URL,SUPABASE_ANON_KEY,AUTHENTICATION_API_KEY,EVOLUTION_INSTANCE
+      - NODE_FUNCTION_ALLOW_ENV=*
+      - N8N_BLOCK_ENV_ACCESS_IN_NODE=false
     networks:
       - evolution-net
     depends_on:

@@ -83,6 +83,7 @@ services:
       - SUPABASE_URL=${SUPABASE_URL}
       - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
       - NODE_FUNCTION_ALLOW_ENV=*
+      - N8N_BLOCK_ENV_ACCESS_IN_NODE=false
     networks:
       - evolution-net
     depends_on:
