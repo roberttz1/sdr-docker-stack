@@ -65,6 +65,8 @@ services:
       - "5678:5678"
     volumes:
       - n8n_data:/home/node/.n8n
+    env_file:
+      - .env
     environment:
       - EVOLUTION_URL=http://api:8080
       - EVOLUTION_INSTANCE=Number_4847
@@ -80,6 +82,7 @@ services:
       # Supabase (para workflows acessarem via $env)
       - SUPABASE_URL=${SUPABASE_URL}
       - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
+      - NODE_FUNCTION_ALLOW_ENV=*
     networks:
       - evolution-net
     depends_on:
