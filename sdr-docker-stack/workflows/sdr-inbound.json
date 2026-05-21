@@ -204,7 +204,7 @@
       "parameters": {
         "name": "atualizar_status_lead",
         "description": "Atualiza o status do lead no CRM. Use quando identificar mudança de estágio: INTERESSADO (lead demonstrou interesse), AGENDADO (reunião marcada), RECUSADO (lead disse não).",
-        "jsCode": "// Tool: Atualizar status do lead no Supabase\nconst leadId = $('Merge Lead Data').item.json.leadId;\nconst novoStatus = $fromAI('status', 'O novo status do lead: INTERESSADO, AGENDADO ou RECUSADO', 'string');\nconst motivo = $fromAI('motivo', 'Se recusado, qual o motivo. Se não recusado, deixe vazio.', 'string');\n\nconst body = {\n  status: novoStatus\n};\n\nif (novoStatus === 'RECUSADO' && motivo) {\n  body.motivo_recusa = motivo;\n}\n\nreturn {\n  leadId,\n  novoStatus,\n  motivo,\n  mensagem: `Status atualizado para ${novoStatus}`\n};"
+        "jsCode": "// Tool: Atualizar status do lead no CRM\nconst leadId = $('Merge Lead Data').item.json.leadId;\nconst novoStatus = $fromAI('status', 'O novo status do lead: INTERESSADO, AGENDADO ou RECUSADO', 'string');\nconst motivo = $fromAI('motivo', 'Se recusado, qual o motivo. Se não recusado, deixe vazio.', 'string');\n\nconst body = {\n  status: novoStatus\n};\n\nif (novoStatus === 'RECUSADO' && motivo) {\n  body.motivo_recusa = motivo;\n}\n\nconst supabaseUrl = $env.get('SUPABASE_URL');\nconst supabaseKey = $env.get('SUPABASE_ANON_KEY');\n\ntry {\n  await fetch(`${supabaseUrl}/rest/v1/leads?id=eq.${leadId}`, {\n    method: 'PATCH',\n    headers: {\n      'apikey': supabaseKey,\n      'Authorization': `Bearer ${supabaseKey}`,\n      'Content-Type': 'application/json'\n    },\n    body: JSON.stringify(body)\n  });\n} catch (err) {}\n\nreturn {\n  leadId,\n  novoStatus,\n  motivo,\n  mensagem: `Status atualizado com sucesso no Supabase para ${novoStatus}.`\n};"
       },
       "type": "@n8n/n8n-nodes-langchain.toolCode",
       "typeVersion": 1.3,
@@ -216,7 +216,7 @@
       "parameters": {
         "name": "extrair_nome_lead",
         "description": "Extrai o nome do lead da mensagem quando ele se apresenta. Use quando o lead informar seu nome na conversa.",
-        "jsCode": "// Tool: Extrair nome e atualizar no Supabase\nconst leadId = $('Merge Lead Data').item.json.leadId;\nconst nome = $fromAI('nome', 'O nome que o lead informou na conversa', 'string');\n\nreturn {\n  leadId,\n  nome_extraido: nome,\n  mensagem: `Nome capturado: ${nome}`\n};"
+        "jsCode": "// Tool: Extrair nome e atualizar no Supabase\nconst leadId = $('Merge Lead Data').item.json.leadId;\nconst nome = $fromAI('nome', 'O nome que o lead informou na conversa', 'string');\n\nconst supabaseUrl = $env.get('SUPABASE_URL');\nconst supabaseKey = $env.get('SUPABASE_ANON_KEY');\n\ntry {\n  await fetch(`${supabaseUrl}/rest/v1/leads?id=eq.${leadId}`, {\n    method: 'PATCH',\n    headers: {\n      'apikey': supabaseKey,\n      'Authorization': `Bearer ${supabaseKey}`,\n      'Content-Type': 'application/json'\n    },\n    body: JSON.stringify({\n      nome_contato: nome,\n      nome_capturado: true\n    })\n  });\n} catch (err) {}\n\nreturn {\n  leadId,\n  nome_extraido: nome,\n  mensagem: `Nome do lead atualizado com sucesso no Supabase para ${nome}.`\n};"
       },
       "type": "@n8n/n8n-nodes-langchain.toolCode",
       "typeVersion": 1.3,

@@ -1,0 +1,108 @@
+{
+  "name": "SDR Import - Planilha para Supabase",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [0, 240],
+      "id": "manual-trigger-import",
+      "name": "Trigger Manual"
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 1
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 440],
+      "id": "schedule-trigger-import",
+      "name": "A cada 1 hora"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "mode": "list"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "list"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [260, 340],
+      "id": "google-sheets-read",
+      "name": "Ler Planilha Google"
+    },
+    {
+      "parameters": {
+        "jsCode": "// =============================================\n// FILTRAR E FORMATAR DADOS DA PLANILHA\n// Normaliza números de telefone e prepara dados para o Supabase\n// =============================================\n\n// Obter todas as linhas lidas do Google Sheets\nconst rows = $input.all();\nconst formattedLeads = [];\n\nfor (const row of rows) {\n  const data = row.json;\n  \n  // 1. Validar e limpar número de telefone\n  let rawPhone = data.Telefone || data.telefone || '';\n  if (!rawPhone) continue;\n  \n  // Remover caracteres não numéricos\n  let phone = rawPhone.toString().replace(/\\D/g, '');\n  \n  // Tratar telefones brasileiros (adicionar DDI 55 se não tiver)\n  if (phone.length === 10 || phone.length === 11) {\n    phone = '55' + phone;\n  }\n  \n  // Ignorar números inválidos\n  if (phone.length < 10) continue;\n  \n  // 2. Extrair e normalizar segmento\n  let segmento = (data.Segmento || data.segmento || 'servicos').toLowerCase().trim();\n  // Mapear segmentos válidos\n  const segmentosValidos = ['clinica', 'imobiliaria', 'loja', 'servicos'];\n  if (!segmentosValidos.includes(segmento)) {\n    segmento = 'servicos';\n  }\n  \n  formattedLeads.push({\n    json: {\n      telefone: phone,\n      nome_contato: data.Nome || data.nome || null,\n      nome_empresa: data.Empresa || data.empresa || null,\n      segmento: segmento,\n      cidade: data.Cidade || data.cidade || null,\n      origem: data.Origem || data.origem || 'google_sheets',\n      observacao: data.Observacao || data.observacao || null,\n      status: 'PENDENTE' // Status inicial para outbound\n    }\n  });\n}\n\nreturn formattedLeads;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [500, 340],
+      "id": "formatar-leads-import",
+      "name": "Formatar Leads"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/leads",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_ANON_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_ANON_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "resolution=ignore-duplicates" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"telefone\": \"{{ $json.telefone }}\",\n  \"nome_contato\": {{ $json.nome_contato ? '\"' + $json.nome_contato + '\"' : 'null' }},\n  \"nome_empresa\": {{ $json.nome_empresa ? '\"' + $json.nome_empresa + '\"' : 'null' }},\n  \"segmento\": \"{{ $json.segmento }}\",\n  \"cidade\": {{ $json.cidade ? '\"' + $json.cidade + '\"' : 'null' }},\n  \"origem\": \"{{ $json.origem }}\",\n  \"observacao\": {{ $json.observacao ? '\"' + $json.observacao + '\"' : 'null' }},\n  \"status\": \"PENDENTE\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [740, 340],
+      "id": "salvar-leads-supabase-import",
+      "name": "Salvar no Supabase (Ignore Duplicados)"
+    }
+  ],
+  "connections": {
+    "Trigger Manual": {
+      "main": [
+        [{ "node": "Ler Planilha Google", "type": "main", "index": 0 }]
+      ]
+    },
+    "A cada 1 hora": {
+      "main": [
+        [{ "node": "Ler Planilha Google", "type": "main", "index": 0 }]
+      ]
+    },
+    "Ler Planilha Google": {
+      "main": [
+        [{ "node": "Formatar Leads", "type": "main", "index": 0 }]
+      ]
+    },
+    "Formatar Leads": {
+      "main": [
+        [{ "node": "Salvar no Supabase (Ignore Duplicados)", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "active": false
+}
